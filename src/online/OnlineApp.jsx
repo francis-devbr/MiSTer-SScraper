@@ -92,6 +92,8 @@ export default function OnlineApp() {
   const [systems, setSystems] = useState([])
   const [selectedSystem, setSelectedSystem] = useState('')
   const [files, setFiles] = useState([])
+  const [romPage, setRomPage] = useState(1)
+  const [romPageSize, setRomPageSize] = useState(25)
   const [running, setRunning] = useState(false)
   const [logs, setLogs] = useState([])
   const [progress, setProgress] = useState({ current: 0, total: 0 })
@@ -114,6 +116,16 @@ export default function OnlineApp() {
     () => files.filter(file => file.systemId === selectedSystem),
     [files, selectedSystem]
   )
+
+  const romPageCount = Math.max(
+    1,
+    Math.ceil(currentFiles.length / romPageSize)
+  )
+
+  const paginatedFiles = useMemo(() => {
+    const start = (romPage - 1) * romPageSize
+    return currentFiles.slice(start, start + romPageSize)
+  }, [currentFiles, romPage, romPageSize])
 
   function showModal(type, title, message, details = '') {
     setModal({ open: true, type, title, message, details })
@@ -206,6 +218,7 @@ export default function OnlineApp() {
     setFiles(mapped)
     setSystems(systemList)
     setSelectedSystem(systemList[0]?.id || '')
+    setRomPage(1)
 
     showModal(
       'success',
@@ -534,18 +547,97 @@ export default function OnlineApp() {
 
         <section className="card">
           <h2>ROMs</h2>
+
+          <div className="rom-toolbar">
+            <div className="rom-page-info">
+              Página {romPage} de {romPageCount}
+            </div>
+
+            <label className="rom-page-size">
+              Itens por página
+              <select
+                value={romPageSize}
+                onChange={event => {
+                  setRomPageSize(Number(event.target.value))
+                  setRomPage(1)
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </label>
+          </div>
+
           <div className="rom-list">
-            {currentFiles.map(item => (
-              <div className="rom" key={item.relativePath}>
-                <span>{item.name}</span>
-                <small>
-                  {item.relativeDirectory === '.'
-                    ? item.systemFolder
-                    : `${item.systemFolder}/${item.relativeDirectory}`}
-                </small>
+            {paginatedFiles.map(item => (
+              <div
+                className="rom"
+                key={item.relativePath}
+              >
+                <div className="rom-main-info">
+                  <span className="rom-name">
+                    {item.name}
+                  </span>
+
+                  <small className="rom-directory">
+                    {item.relativeDirectory === '.'
+                      ? item.systemFolder
+                      : `${item.systemFolder}/${item.relativeDirectory}`}
+                  </small>
+                </div>
+
+                <div className="rom-art-status">
+                  <span className="art-indicator missing-art">
+                    Capa pendente
+                  </span>
+
+                  <span className="art-indicator missing-art">
+                    Fundo pendente
+                  </span>
+                </div>
               </div>
             ))}
-            {!currentFiles.length && <p className="muted">Nenhuma ROM selecionada.</p>}
+
+            {!paginatedFiles.length && (
+              <p className="muted">
+                Nenhuma ROM selecionada.
+              </p>
+            )}
+          </div>
+
+          <div className="rom-pagination">
+            <button
+              className="small"
+              onClick={() =>
+                setRomPage(page =>
+                  Math.max(1, page - 1)
+                )
+              }
+              disabled={romPage <= 1}
+            >
+              Anterior
+            </button>
+
+            <span>
+              {romPage} / {romPageCount}
+            </span>
+
+            <button
+              className="small"
+              onClick={() =>
+                setRomPage(page =>
+                  Math.min(
+                    romPageCount,
+                    page + 1
+                  )
+                )
+              }
+              disabled={romPage >= romPageCount}
+            >
+              Próxima
+            </button>
           </div>
         </section>
 

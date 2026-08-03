@@ -205,6 +205,9 @@ function App() {
   const [selectedSystem, setSelectedSystem] = useState('')
   const [source, setSource] = useState('local')
   const [roms, setRoms] = useState([])
+  const [romPage, setRomPage] = useState(1)
+  const [romPageSize, setRomPageSize] = useState(25)
+  const [hoveredRom, setHoveredRom] = useState(null)
   const [selectedRom, setSelectedRom] = useState(null)
   const [cacheStats, setCacheStats] = useState(null)
   const [config, setConfig] = useState(null)
@@ -242,6 +245,16 @@ function App() {
   const current = systems.find(
     system => system.id === selectedSystem
   )
+
+  const romPageCount = Math.max(
+    1,
+    Math.ceil(roms.length / romPageSize)
+  )
+
+  const paginatedRoms = useMemo(() => {
+    const start = (romPage - 1) * romPageSize
+    return roms.slice(start, start + romPageSize)
+  }, [roms, romPage, romPageSize])
 
   useEffect(() => {
     connectAgent()
@@ -695,10 +708,42 @@ function App() {
         `&source=${encodeURIComponent(selectedSource)}`
       )
 
-      setRoms(data.roms || [])
+      const nextRoms = data.roms || []
+
+      setRoms(nextRoms)
+      setRomPage(1)
+      setSelectedRom(null)
+      setHoveredRom(null)
+
+      showModal({
+        type: 'success',
+        title: 'Varredura concluída',
+        message:
+          `${nextRoms.length} ROMs foram encontradas.`,
+        details:
+          nextRoms.length
+            ? `Plataforma: ${systemId}\nOrigem: ${
+                selectedSource === 'network'
+                  ? 'MiSTer via rede'
+                  : 'Diretório local'
+              }`
+            : 'Nenhuma ROM compatível foi encontrada.'
+      })
     } catch (error) {
       setRoms([])
+      setRomPage(1)
+      setSelectedRom(null)
+      setHoveredRom(null)
+
       addLog(`ERRO ao listar ROMs: ${error.message}`)
+
+      showModal({
+        type: 'error',
+        title: 'Erro ao escanear ROMs',
+        message: error.message,
+        details:
+          'Confira o diretório, a conexão e as extensões configuradas para a plataforma.'
+      })
     }
   }
 
@@ -789,6 +834,32 @@ function App() {
       system: selectedSystem,
       source,
       romPath: selectedRom.path,
+      type
+    })
+
+    const connection = loadAgentConnection()
+
+    if (connection.token) {
+      params.set(
+        'agentToken',
+        connection.token
+      )
+    }
+
+    return agentUrl(
+      `/api/artwork?${params.toString()}`
+    )
+  }
+
+  function artworkUrlForRom(rom, type) {
+    if (!rom || !selectedSystem) {
+      return ''
+    }
+
+    const params = new URLSearchParams({
+      system: selectedSystem,
+      source,
+      romPath: rom.path,
       type
     })
 
@@ -1537,32 +1608,154 @@ function App() {
           title="ROMs"
           badge={roms.length}
         >
+          <div className="rom-toolbar">
+            <div className="rom-page-info">
+              Página {romPage} de {romPageCount}
+            </div>
+
+            <label className="rom-page-size">
+              Itens por página
+              <select
+                value={romPageSize}
+                onChange={event => {
+                  setRomPageSize(Number(event.target.value))
+                  setRomPage(1)
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </label>
+          </div>
 
           <div className="rom-list">
-            {roms.map(rom => (
+            {paginatedRoms.map(rom => (
               <button
                 type="button"
-                className={`rom rom-button ${selectedRom?.path === rom.path ? 'selected' : ''}`}
+                className={`rom rom-button rom-with-preview ${
+                  selectedRom?.path === rom.path
+                    ? 'selected'
+                    : ''
+                }`}
                 key={rom.path}
                 onClick={() => setSelectedRom(rom)}
+                onMouseEnter={() => setHoveredRom(rom)}
+                onMouseLeave={() => setHoveredRom(null)}
               >
-                <span>
-                  {rom.relativeDirectory &&
-                  rom.relativeDirectory !== '.'
-                    ? `${rom.relativeDirectory}/`
-                    : ''}
-                  {rom.name}
-                </span>
-                <small>
-                  {rom.boxExists ? '🖼 capa' : '○ capa'}{' '}
-                  {rom.backgroundExists ? '🖼 BG' : '○ BG'}
-                </small>
+                <div className="rom-main-info">
+                  <span className="rom-name">
+                    {rom.name}
+                  </span>
+
+                  <small className="rom-directory">
+                    {rom.relativeDirectory &&
+                    rom.relativeDirectory !== '.'
+                      ? rom.relativeDirectory
+                      : 'Raiz da plataforma'}
+                  </small>
+                </div>
+
+                <div className="rom-art-status">
+                  <span
+                    className={`art-indicator ${
+                      rom.boxExists
+                        ? 'has-art'
+                        : 'missing-art'
+                    }`}
+                  >
+                    Capa
+                  </span>
+
+                  <span
+                    className={`art-indicator ${
+                      rom.backgroundExists
+                        ? 'has-art'
+                        : 'missing-art'
+                    }`}
+                  >
+                    Fundo
+                  </span>
+                </div>
+
+                {hoveredRom?.path === rom.path && (
+                  <div className="rom-hover-preview">
+                    <div className="preview-panel">
+                      <strong>Capa</strong>
+
+                      {rom.boxExists ? (
+                        <img
+                          src={artworkUrlForRom(rom, 'box')}
+                          alt={`Capa de ${rom.name}`}
+                        />
+                      ) : (
+                        <div className="preview-missing">
+                          Sem capa
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="preview-panel">
+                      <strong>Fundo</strong>
+
+                      {rom.backgroundExists ? (
+                        <img
+                          src={artworkUrlForRom(
+                            rom,
+                            'background'
+                          )}
+                          alt={`Fundo de ${rom.name}`}
+                        />
+                      ) : (
+                        <div className="preview-missing">
+                          Sem fundo
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </button>
             ))}
 
-            {!roms.length && (
-              <p className="muted">Nenhuma ROM encontrada.</p>
+            {!paginatedRoms.length && (
+              <p className="muted">
+                Nenhuma ROM encontrada.
+              </p>
             )}
+          </div>
+
+          <div className="rom-pagination">
+            <button
+              className="small"
+              onClick={() =>
+                setRomPage(page =>
+                  Math.max(1, page - 1)
+                )
+              }
+              disabled={romPage <= 1}
+            >
+              Anterior
+            </button>
+
+            <span>
+              {romPage} / {romPageCount}
+            </span>
+
+            <button
+              className="small"
+              onClick={() =>
+                setRomPage(page =>
+                  Math.min(
+                    romPageCount,
+                    page + 1
+                  )
+                )
+              }
+              disabled={romPage >= romPageCount}
+            >
+              Próxima
+            </button>
           </div>
         </CollapsibleCard>
 

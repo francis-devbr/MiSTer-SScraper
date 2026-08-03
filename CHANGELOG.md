@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.2.0
+
+- Exibe modal ao concluir ou falhar a varredura de ROMs.
+- Adiciona paginação com 10, 25, 50 ou 100 ROMs por página.
+- Exibe o diretório relativo de cada ROM.
+- Adiciona indicadores verdes para artwork existente.
+- Adiciona indicadores vermelhos para artwork ausente.
+- Mostra capa e fundo ao passar o mouse sobre uma ROM.
+- Mantém preview detalhado ao clicar na ROM.
+
+
 ## 6.1.0
 
 - Faz varredura recursiva de subpastas locais e remotas.
