@@ -1,0 +1,38 @@
+{
+  "screenscraper": {
+    "devid": "",
+    "devpassword": "",
+    "ssid": "",
+    "sspassword": "",
+    "softname": "MiSTerConsoleModeScraper",
+    "delayMs": 1500,
+    "boxartMedia": "box-2D",
+    "backgroundMedia": "ss",
+    "defaultRegion": "us",
+    "regionFallbackOrder": [
+      "us",
+      "wor",
+      "eu",
+      "br",
+      "jp",
+      "au",
+      "kr",
+      "ss"
+    ]
+  },
+  "games": {
+    "basePath": ""
+  },
+  "mister": {
+    "host": "192.168.1.100",
+    "port": 22,
+    "username": "root",
+    "password": "",
+    "remoteBasePath": "/media/fat/games"
+  },
+  "artwork": {
+    "boxart": true,
+    "background": true,
+    "extension": ".png"
+  }
+}

@@ -1,0 +1,622 @@
+{
+  "3do": {
+    "screenScraperId": 29,
+    "mobyId": 35,
+    "tgdbId": 25
+  },
+  "ags": {
+    "screenScraperId": 138,
+    "mobyId": 3,
+    "tgdbId": 1
+  },
+  "amiga": {
+    "screenScraperId": 64,
+    "mobyId": 19,
+    "tgdbId": 4911
+  },
+  "amstradcpc": {
+    "screenScraperId": 65,
+    "mobyId": 60,
+    "tgdbId": 4914
+  },
+  "apple2": {
+    "screenScraperId": 86,
+    "mobyId": 31,
+    "tgdbId": 4942
+  },
+  "arcade": {
+    "screenScraperId": 75,
+    "mobyId": 143,
+    "tgdbId": 23
+  },
+  "arcadia": {
+    "screenScraperId": 94,
+    "mobyId": 162,
+    "tgdbId": 4963
+  },
+  "atari2600": {
+    "screenScraperId": 26,
+    "mobyId": 28,
+    "tgdbId": 22
+  },
+  "atari5200": {
+    "screenScraperId": 40,
+    "mobyId": 33,
+    "tgdbId": 26
+  },
+  "atari7800": {
+    "screenScraperId": 41,
+    "mobyId": 34,
+    "tgdbId": 27
+  },
+  "atari800": {
+    "screenScraperId": 43,
+    "mobyId": 39,
+    "tgdbId": 4943
+  },
+  "atarijaguar": {
+    "screenScraperId": 27,
+    "mobyId": 17,
+    "tgdbId": 28
+  },
+  "atarilynx": {
+    "screenScraperId": 28,
+    "mobyId": 18,
+    "tgdbId": 4924
+  },
+  "atarist": {
+    "screenScraperId": 42,
+    "mobyId": 24,
+    "tgdbId": 4937
+  },
+  "c64": {
+    "screenScraperId": 66,
+    "mobyId": 27,
+    "tgdbId": 40
+  },
+  "channelf": {
+    "screenScraperId": 80,
+    "mobyId": 76,
+    "tgdbId": 4928
+  },
+  "coco": {
+    "screenScraperId": 144,
+    "mobyId": 62,
+    "tgdbId": 4941
+  },
+  "coleco": {
+    "screenScraperId": 48,
+    "mobyId": 29,
+    "tgdbId": 31
+  },
+  "crvision": {
+    "screenScraperId": 241,
+    "mobyId": 212,
+    "tgdbId": 5005
+  },
+  "daphne": {
+    "screenScraperId": 49,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "dragon32": {
+    "screenScraperId": 91,
+    "mobyId": 79,
+    "tgdbId": 4952
+  },
+  "dreamcast": {
+    "screenScraperId": 23,
+    "mobyId": 8,
+    "tgdbId": 16
+  },
+  "fba": {
+    "screenScraperId": 75,
+    "mobyId": 143,
+    "tgdbId": 23
+  },
+  "fds": {
+    "screenScraperId": 106,
+    "mobyId": 22,
+    "tgdbId": 4936
+  },
+  "fm7": {
+    "screenScraperId": 97,
+    "mobyId": 126,
+    "tgdbId": 4978
+  },
+  "gameandwatch": {
+    "screenScraperId": 52,
+    "mobyId": null,
+    "tgdbId": 4950
+  },
+  "gamegear": {
+    "screenScraperId": 21,
+    "mobyId": 25,
+    "tgdbId": 20
+  },
+  "gb": {
+    "screenScraperId": 9,
+    "mobyId": 10,
+    "tgdbId": 4
+  },
+  "gba": {
+    "screenScraperId": 12,
+    "mobyId": 12,
+    "tgdbId": 5
+  },
+  "gbc": {
+    "screenScraperId": 10,
+    "mobyId": 11,
+    "tgdbId": 41
+  },
+  "gc": {
+    "screenScraperId": 13,
+    "mobyId": 14,
+    "tgdbId": 2
+  },
+  "intellivision": {
+    "screenScraperId": 115,
+    "mobyId": 30,
+    "tgdbId": 32
+  },
+  "love": {
+    "screenScraperId": null,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "macintosh": {
+    "screenScraperId": 146,
+    "mobyId": 74,
+    "tgdbId": 37
+  },
+  "mame": {
+    "screenScraperId": 75,
+    "mobyId": 143,
+    "tgdbId": 23
+  },
+  "mame-advmame": {
+    "screenScraperId": 75,
+    "mobyId": 143,
+    "tgdbId": 23
+  },
+  "mame-libretro": {
+    "screenScraperId": 75,
+    "mobyId": 143,
+    "tgdbId": 23
+  },
+  "mame-mame4all": {
+    "screenScraperId": 75,
+    "mobyId": 143,
+    "tgdbId": 23
+  },
+  "mastersystem": {
+    "screenScraperId": 2,
+    "mobyId": 26,
+    "tgdbId": 35
+  },
+  "megadrive": {
+    "screenScraperId": 1,
+    "mobyId": 16,
+    "tgdbId": "36|18"
+  },
+  "moto": {
+    "screenScraperId": 141,
+    "mobyId": "130|147",
+    "tgdbId": "5022|5023"
+  },
+  "msx": {
+    "screenScraperId": 113,
+    "mobyId": 57,
+    "tgdbId": 4929
+  },
+  "n64": {
+    "screenScraperId": 14,
+    "mobyId": 9,
+    "tgdbId": 3
+  },
+  "nds": {
+    "screenScraperId": 15,
+    "mobyId": 44,
+    "tgdbId": 8
+  },
+  "neogeo": {
+    "screenScraperId": 142,
+    "mobyId": 36,
+    "tgdbId": 24
+  },
+  "nes": {
+    "screenScraperId": 3,
+    "mobyId": 22,
+    "tgdbId": 7
+  },
+  "ngp": {
+    "screenScraperId": 25,
+    "mobyId": 52,
+    "tgdbId": 4922
+  },
+  "ngpc": {
+    "screenScraperId": 82,
+    "mobyId": 53,
+    "tgdbId": 4923
+  },
+  "openbor": {
+    "screenScraperId": 214,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "oric": {
+    "screenScraperId": 131,
+    "mobyId": 111,
+    "tgdbId": 4986
+  },
+  "pc": {
+    "screenScraperId": 135,
+    "mobyId": 2,
+    "tgdbId": 1
+  },
+  "pc88": {
+    "screenScraperId": 221,
+    "mobyId": 94,
+    "tgdbId": 4933
+  },
+  "pc98": {
+    "screenScraperId": 208,
+    "mobyId": 95,
+    "tgdbId": 4934
+  },
+  "pcengine": {
+    "screenScraperId": 31,
+    "mobyId": 40,
+    "tgdbId": 34
+  },
+  "pcfx": {
+    "screenScraperId": 72,
+    "mobyId": null,
+    "tgdbId": 4930
+  },
+  "pico8": {
+    "screenScraperId": 234,
+    "mobyId": 103,
+    "tgdbId": 4958
+  },
+  "pokemini": {
+    "screenScraperId": 211,
+    "mobyId": 152,
+    "tgdbId": 4957
+  },
+  "ports": {
+    "screenScraperId": 135,
+    "mobyId": 3,
+    "tgdbId": 1
+  },
+  "ps2": {
+    "screenScraperId": 58,
+    "mobyId": 7,
+    "tgdbId": 11
+  },
+  "psp": {
+    "screenScraperId": 61,
+    "mobyId": 46,
+    "tgdbId": 13
+  },
+  "psx": {
+    "screenScraperId": 57,
+    "mobyId": 6,
+    "tgdbId": 10
+  },
+  "samcoupe": {
+    "screenScraperId": 213,
+    "mobyId": 120,
+    "tgdbId": 4979
+  },
+  "saturn": {
+    "screenScraperId": 22,
+    "mobyId": 23,
+    "tgdbId": 17
+  },
+  "scummvm": {
+    "screenScraperId": 123,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "sega32x": {
+    "screenScraperId": 19,
+    "mobyId": 21,
+    "tgdbId": 33
+  },
+  "segacd": {
+    "screenScraperId": 20,
+    "mobyId": 20,
+    "tgdbId": 21
+  },
+  "sg-1000": {
+    "screenScraperId": 109,
+    "mobyId": 114,
+    "tgdbId": 4949
+  },
+  "snes": {
+    "screenScraperId": 4,
+    "mobyId": 15,
+    "tgdbId": 6
+  },
+  "solarus": {
+    "screenScraperId": 223,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "steam": {
+    "screenScraperId": 138,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "stratagus": {
+    "screenScraperId": null,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "ti99": {
+    "screenScraperId": 205,
+    "mobyId": 47,
+    "tgdbId": 4953
+  },
+  "tic80": {
+    "screenScraperId": 222,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "trs-80": {
+    "screenScraperId": 144,
+    "mobyId": 58,
+    "tgdbId": 4941
+  },
+  "vectrex": {
+    "screenScraperId": 102,
+    "mobyId": 37,
+    "tgdbId": 4939
+  },
+  "videopac": {
+    "screenScraperId": 104,
+    "mobyId": 128,
+    "tgdbId": 4927
+  },
+  "virtualboy": {
+    "screenScraperId": 11,
+    "mobyId": 38,
+    "tgdbId": 4918
+  },
+  "wii": {
+    "screenScraperId": 16,
+    "mobyId": 82,
+    "tgdbId": 9
+  },
+  "wonderswan": {
+    "screenScraperId": 45,
+    "mobyId": 48,
+    "tgdbId": 4925
+  },
+  "wonderswancolor": {
+    "screenScraperId": 46,
+    "mobyId": 49,
+    "tgdbId": 4926
+  },
+  "x1": {
+    "screenScraperId": 220,
+    "mobyId": 121,
+    "tgdbId": 4977
+  },
+  "x68000": {
+    "screenScraperId": 79,
+    "mobyId": 106,
+    "tgdbId": 4931
+  },
+  "zmachine": {
+    "screenScraperId": 215,
+    "mobyId": 169,
+    "tgdbId": null
+  },
+  "zx81": {
+    "screenScraperId": 77,
+    "mobyId": 119,
+    "tgdbId": 5010
+  },
+  "zxspectrum": {
+    "screenScraperId": 76,
+    "mobyId": 41,
+    "tgdbId": 4913
+  },
+  "3ds": {
+    "screenScraperId": 17,
+    "mobyId": 101,
+    "tgdbId": 4912
+  },
+  "actionmax": {
+    "screenScraperId": 81,
+    "mobyId": null,
+    "tgdbId": 4976
+  },
+  "apple2gs": {
+    "screenScraperId": 217,
+    "mobyId": 51,
+    "tgdbId": null
+  },
+  "arduboy": {
+    "screenScraperId": 263,
+    "mobyId": 215,
+    "tgdbId": null
+  },
+  "astrocade": {
+    "screenScraperId": 44,
+    "mobyId": 160,
+    "tgdbId": 4968
+  },
+  "atarijaguarcd": {
+    "screenScraperId": 171,
+    "mobyId": null,
+    "tgdbId": 29
+  },
+  "atomiswave": {
+    "screenScraperId": 53,
+    "mobyId": null,
+    "tgdbId": 23
+  },
+  "bbcmicro": {
+    "screenScraperId": 37,
+    "mobyId": 92,
+    "tgdbId": 5013
+  },
+  "cd32": {
+    "screenScraperId": 130,
+    "mobyId": 56,
+    "tgdbId": 4947
+  },
+  "cdi": {
+    "screenScraperId": 133,
+    "mobyId": 73,
+    "tgdbId": 4917
+  },
+  "cdtv": {
+    "screenScraperId": 129,
+    "mobyId": 83,
+    "tgdbId": null
+  },
+  "easyrpg": {
+    "screenScraperId": 231,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "fmtowns": {
+    "screenScraperId": 253,
+    "mobyId": 102,
+    "tgdbId": 4932
+  },
+  "gamecom": {
+    "screenScraperId": 121,
+    "mobyId": 50,
+    "tgdbId": 4940
+  },
+  "gmaster": {
+    "screenScraperId": 103,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "j2me": {
+    "screenScraperId": null,
+    "mobyId": null,
+    "tgdbId": 5018
+  },
+  "megaduck": {
+    "screenScraperId": 90,
+    "mobyId": null,
+    "tgdbId": 4948
+  },
+  "msx2": {
+    "screenScraperId": 116,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "n64dd": {
+    "screenScraperId": 122,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "naomi": {
+    "screenScraperId": 56,
+    "mobyId": null,
+    "tgdbId": 23
+  },
+  "neogeocd": {
+    "screenScraperId": 70,
+    "mobyId": 54,
+    "tgdbId": 4956
+  },
+  "palm": {
+    "screenScraperId": 219,
+    "mobyId": 65,
+    "tgdbId": null
+  },
+  "pcenginecd": {
+    "screenScraperId": 114,
+    "mobyId": 45,
+    "tgdbId": 4955
+  },
+  "plus4": {
+    "screenScraperId": 99,
+    "mobyId": 115,
+    "tgdbId": "5007|5006"
+  },
+  "ps3": {
+    "screenScraperId": 59,
+    "mobyId": 81,
+    "tgdbId": 12
+  },
+  "ps4": {
+    "screenScraperId": 60,
+    "mobyId": 141,
+    "tgdbId": 4919
+  },
+  "ps5": {
+    "screenScraperId": 284,
+    "mobyId": 288,
+    "tgdbId": 4980
+  },
+  "psvita": {
+    "screenScraperId": 62,
+    "mobyId": 105,
+    "tgdbId": 39
+  },
+  "pv1000": {
+    "screenScraperId": 74,
+    "mobyId": 125,
+    "tgdbId": 4964
+  },
+  "scv": {
+    "screenScraperId": 67,
+    "mobyId": 138,
+    "tgdbId": 4966
+  },
+  "supervision": {
+    "screenScraperId": 207,
+    "mobyId": 109,
+    "tgdbId": 4959
+  },
+  "switch": {
+    "screenScraperId": 225,
+    "mobyId": 203,
+    "tgdbId": 4971
+  },
+  "symbian": {
+    "screenScraperId": null,
+    "mobyId": 67,
+    "tgdbId": null
+  },
+  "vic20": {
+    "screenScraperId": 73,
+    "mobyId": 43,
+    "tgdbId": 4945
+  },
+  "vircon32": {
+    "screenScraperId": 272,
+    "mobyId": null,
+    "tgdbId": null
+  },
+  "vsmile": {
+    "screenScraperId": 120,
+    "mobyId": 42,
+    "tgdbId": 4988
+  },
+  "wiiu": {
+    "screenScraperId": 18,
+    "mobyId": 132,
+    "tgdbId": 38
+  },
+  "xbox": {
+    "screenScraperId": 32,
+    "mobyId": 13,
+    "tgdbId": 14
+  },
+  "xbox360": {
+    "screenScraperId": 33,
+    "mobyId": 69,
+    "tgdbId": 15
+  }
+}
