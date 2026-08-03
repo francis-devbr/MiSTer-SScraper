@@ -1548,75 +1548,6 @@ function App() {
         </CollapsibleCard>
 
         <CollapsibleCard
-          id="options"
-          title="Opções"
-        >
-
-          <label>
-            <input
-              type="checkbox"
-              checked={options.force}
-              onChange={event =>
-                setOptions({
-                  ...options,
-                  force: event.target.checked
-                })
-              }
-              disabled={running}
-            />
-            Forçar atualização das imagens
-          </label>
-
-          <label>
-            <input
-              type="checkbox"
-              checked={options.background}
-              onChange={event =>
-                setOptions({
-                  ...options,
-                  background: event.target.checked
-                })
-              }
-              disabled={running}
-            />
-            Baixar imagem -BG
-          </label>
-
-          <label>
-            <input
-              type="checkbox"
-              checked={options.dryRun}
-              onChange={event =>
-                setOptions({
-                  ...options,
-                  dryRun: event.target.checked
-                })
-              }
-              disabled={running}
-            />
-            Simulação
-          </label>
-
-          <button
-            onClick={startScrape}
-            disabled={
-              running ||
-              !selectedSystem ||
-              (
-                source === 'local' &&
-                !current?.availableLocal
-              ) ||
-              (
-                source === 'network' &&
-                !current?.availableRemote
-              )
-            }
-          >
-            {running ? 'Processando...' : 'Iniciar Scraper'}
-          </button>
-        </CollapsibleCard>
-
-        <CollapsibleCard
           id="roms"
           title="ROMs"
           badge={loadingRoms ? '...' : roms.length}
@@ -1632,6 +1563,74 @@ function App() {
               </span>
             </div>
           )}
+
+          <div className="rom-options-panel">
+            <label>
+              <input
+                type="checkbox"
+                checked={options.force}
+                onChange={event =>
+                  setOptions({
+                    ...options,
+                    force: event.target.checked
+                  })
+                }
+                disabled={running || loadingRoms}
+              />
+              Forçar atualização das imagens
+            </label>
+
+            <label>
+              <input
+                type="checkbox"
+                checked={options.background}
+                onChange={event =>
+                  setOptions({
+                    ...options,
+                    background: event.target.checked
+                  })
+                }
+                disabled={running || loadingRoms}
+              />
+              Baixar imagem -BG
+            </label>
+
+            <label>
+              <input
+                type="checkbox"
+                checked={options.dryRun}
+                onChange={event =>
+                  setOptions({
+                    ...options,
+                    dryRun: event.target.checked
+                  })
+                }
+                disabled={running || loadingRoms}
+              />
+              Simulação
+            </label>
+
+            <button
+              onClick={startScrape}
+              disabled={
+                running ||
+                loadingRoms ||
+                !selectedSystem ||
+                (
+                  source === 'local' &&
+                  !current?.availableLocal
+                ) ||
+                (
+                  source === 'network' &&
+                  !current?.availableRemote
+                )
+              }
+            >
+              {running
+                ? 'Processando...'
+                : 'Iniciar Scraper'}
+            </button>
+          </div>
           <div className="rom-toolbar">
             <div className="rom-page-info">
               Página {romPage} de {romPageCount}

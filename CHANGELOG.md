@@ -1,5 +1,14 @@
 # Changelog
 
+## 6.3.0
+
+- Remove o card separado de opções.
+- Move as opções de scraping para o topo do card de ROMs.
+- Reorganiza os controles em grade responsiva.
+- Mantém o botão de iniciar scraper junto da lista e paginação.
+- Reduz a fragmentação visual da tela.
+
+
 ## 6.2.2
 
 - Aumenta o card da lista de ROMs para ocupar toda a largura.
