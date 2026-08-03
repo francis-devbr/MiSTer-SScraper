@@ -299,10 +299,25 @@ function App() {
       await loadSettings()
       await loadConfig()
     } catch (error) {
+      const message =
+        error?.message ||
+        'Não foi possível conectar ao agente local.'
+
       setAgentOnline(false)
+      setShowSettings(true)
       addLog(
-        `Agente local indisponível: ${error.message}`
+        `Agente local indisponível: ${message}`
       )
+
+      showModal({
+        type: 'error',
+        title: 'Agente local indisponível',
+        message,
+        details:
+          message.includes('Token')
+            ? 'Copie somente o token exibido no terminal do agente e clique em Conectar ao agente.'
+            : 'Confira se o agente está executando em http://127.0.0.1:3001.'
+      })
     }
   }
 
@@ -360,9 +375,23 @@ function App() {
       await loadConfig()
       return data
     } catch (error) {
+      const message =
+        error?.message ||
+        'Não foi possível salvar as configurações.'
+
       addLog(
-        `ERRO ao salvar configurações: ${error.message}`
+        `ERRO ao salvar configurações: ${message}`
       )
+
+      if (closeSettings) {
+        showModal({
+          type: 'error',
+          title: 'Erro ao salvar configurações',
+          message
+        })
+      }
+
+      throw error
     } finally {
       setSavingSettings(false)
     }
@@ -453,6 +482,28 @@ function App() {
     } finally {
       setTestingMister(false)
     }
+  }
+
+  function showModal({
+    type = 'info',
+    title,
+    message,
+    details = ''
+  }) {
+    setModal({
+      open: true,
+      type,
+      title,
+      message,
+      details
+    })
+  }
+
+  function closeModal() {
+    setModal(current => ({
+      ...current,
+      open: false
+    }))
   }
 
   function addLog(text) {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 6.0.1
+
+- Corrige `showModal is not defined` no modo local.
+- Exibe falhas de conexão com o agente em modal.
+- Mantém o card de configurações aberto quando o token é inválido.
+- Interrompe testes quando o salvamento das configurações falha.
+- Exibe erros de salvamento em modal e no log.
+
+
 ## 6.0.0
 
 - Detecta automaticamente modo local ou online.
