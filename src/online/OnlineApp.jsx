@@ -96,6 +96,8 @@ export default function OnlineApp() {
   const [romPage, setRomPage] = useState(1)
   const [romPageSize, setRomPageSize] = useState(25)
   const [running, setRunning] = useState(false)
+  const onlineAbortController = useRef(null)
+  const onlineStopRequested = useRef(false)
   const [logs, setLogs] = useState([])
   const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [modal, setModal] = useState({
@@ -302,7 +304,7 @@ export default function OnlineApp() {
     })
   }
 
-  async function findGame(platform, item) {
+  async function findGame(platform, item, signal) {
     const params = baseParams()
     params.set('systemeid', platform.systemeid)
     params.set('romtype', 'rom')
@@ -310,7 +312,8 @@ export default function OnlineApp() {
     params.set('romtaille', item.file.size)
 
     const response = await fetch(
-      `https://api.screenscraper.fr/api2/jeuInfos.php?${params}`
+      `https://api.screenscraper.fr/api2/jeuInfos.php?${params}`,
+      { signal }
     )
 
     const text = await response.text()
@@ -321,7 +324,7 @@ export default function OnlineApp() {
     return json?.response?.jeu || null
   }
 
-  async function downloadMedia(platform, gameId, media, region) {
+  async function downloadMedia(platform, gameId, media, region, signal) {
     const attempts = [
       `${media}(${region})`,
       `${media}(us)`,
@@ -338,7 +341,8 @@ export default function OnlineApp() {
       params.set('outputformat', 'png')
 
       const response = await fetch(
-        `https://api.screenscraper.fr/api2/mediaJeu.php?${params}`
+        `https://api.screenscraper.fr/api2/mediaJeu.php?${params}`,
+        { signal }
       )
 
       if (!response.ok) continue
@@ -375,9 +379,16 @@ export default function OnlineApp() {
       return
     }
 
+    const controller = new AbortController()
+    onlineAbortController.current = controller
+    onlineStopRequested.current = false
+
     setRunning(true)
     setLogs([])
-    setProgress({ current: 0, total: currentFiles.length })
+    setProgress({
+      current: 0,
+      total: currentFiles.length
+    })
 
     const zip = new JSZip()
     const platformFolder =
@@ -390,12 +401,22 @@ export default function OnlineApp() {
 
     try {
       for (let index = 0; index < currentFiles.length; index++) {
+        if (
+          controller.signal.aborted ||
+          onlineStopRequested.current
+        ) {
+          throw new DOMException(
+            'Scraping interrompido',
+            'AbortError'
+          )
+        }
+
         const item = currentFiles[index]
         setProgress({ current: index + 1, total: currentFiles.length })
         addLog(`[${index + 1}/${currentFiles.length}] ${item.name}`)
 
         try {
-          const game = await findGame(platform, item)
+          const game = await findGame(platform, item, controller.signal)
 
           if (!game?.id) {
             missing++
@@ -415,11 +436,11 @@ export default function OnlineApp() {
             zip.folder(`${directoryPrefix}/media`)
 
           await sleep(settings.delayMs)
-          const box = await downloadMedia(platform, game.id, 'box-2D', region)
+          const box = await downloadMedia(platform, game.id, 'box-2D', region, controller.signal)
           if (box) mediaFolder.file(`${base}.png`, box)
 
           await sleep(settings.delayMs)
-          const bg = await downloadMedia(platform, game.id, 'ss', region)
+          const bg = await downloadMedia(platform, game.id, 'ss', region, controller.signal)
           if (bg) mediaFolder.file(`${base}-BG.png`, bg)
 
           if (box || bg) {
@@ -456,14 +477,35 @@ export default function OnlineApp() {
         `Não encontrados/sem mídia: ${missing}\nErros: ${failed}`
       )
     } catch (error) {
-      showError(
-        'Falha no scraping online',
-        error.message,
-        'Os detalhes completos permanecem no card de log.'
-      )
+      if (
+        error.name === 'AbortError' ||
+        onlineStopRequested.current
+      ) {
+        addLog('PROCESSO INTERROMPIDO PELO USUÁRIO')
+
+        showModal(
+          'info',
+          'Scraping interrompido',
+          'O processo foi parado pelo usuário.',
+          `${progress.current} de ${progress.total} ROMs haviam sido processadas.`
+        )
+      } else {
+        showError(
+          'Falha no scraping online',
+          error.message,
+          'Os detalhes completos permanecem no card de log.'
+        )
+      }
     } finally {
+      onlineAbortController.current = null
       setRunning(false)
     }
+  }
+
+  function stopOnlineScrape() {
+    if (!running) return
+    onlineStopRequested.current = true
+    onlineAbortController.current?.abort()
   }
 
   return (
@@ -549,14 +591,67 @@ export default function OnlineApp() {
             <div><b>ROMs:</b> {currentFiles.length}</div>
             <div><b>ScreenScraper ID:</b> {platforms[selectedSystem]?.systemeid ?? 'não configurado'}</div>
           </div>
-          <button
-            onClick={startOnlineScrape}
-            disabled={running || !currentFiles.length}
-          >
-            {running
-              ? `Processando ${progress.current}/${progress.total}`
-              : 'Gerar artwork e baixar ZIP'}
-          </button>
+          <div className="online-scrape-actions">
+            <button
+              onClick={startOnlineScrape}
+              disabled={running || !currentFiles.length}
+            >
+              {running
+                ? `Processando ${progress.current}/${progress.total}`
+                : 'Gerar artwork e baixar ZIP'}
+            </button>
+
+            {running && (
+              <button
+                className="stop-scrape-button"
+                onClick={stopOnlineScrape}
+              >
+                Parar
+              </button>
+            )}
+          </div>
+
+          {running && (
+            <div className="scrape-progress-panel">
+              <div className="scrape-progress-header">
+                <strong>Processando ROMs</strong>
+                <span>
+                  {progress.current} / {progress.total}
+                </span>
+              </div>
+
+              <div className="scrape-progress-track">
+                <div
+                  className="scrape-progress-fill"
+                  style={{
+                    width: `${
+                      progress.total
+                        ? Math.round(
+                            (progress.current / progress.total) * 100
+                          )
+                        : 0
+                    }%`
+                  }}
+                />
+              </div>
+
+              <div className="scrape-progress-details">
+                <span>
+                  {progress.total
+                    ? Math.round(
+                        (progress.current / progress.total) * 100
+                      )
+                    : 0}% concluído
+                </span>
+                <span>
+                  Faltam {Math.max(
+                    0,
+                    progress.total - progress.current
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="card roms-card">

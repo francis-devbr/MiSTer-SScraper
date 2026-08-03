@@ -1630,12 +1630,41 @@ app.post('/api/scrape', async (req, res) => {
     'keep-alive'
   )
 
-  const send = message => {
-    res.write(
-      JSON.stringify({
-        message
-      }) + '\n'
-    )
+  let clientAborted = false
+
+  req.on('aborted', () => {
+    clientAborted = true
+  })
+
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      clientAborted = true
+    }
+  })
+
+  const send = payload => {
+    if (
+      clientAborted ||
+      res.writableEnded ||
+      res.destroyed
+    ) {
+      return false
+    }
+
+    const event =
+      typeof payload === 'string'
+        ? { type: 'log', message: payload }
+        : payload
+
+    try {
+      res.write(
+        `${JSON.stringify(event)}\n`
+      )
+      return true
+    } catch {
+      clientAborted = true
+      return false
+    }
   }
 
   let sftp = null
@@ -1745,13 +1774,36 @@ app.post('/api/scrape', async (req, res) => {
       )
     }
 
+    send({
+      type: 'progress',
+      current: 0,
+      total: roms.length,
+      remaining: roms.length,
+      percent: 0
+    })
+
     for (
       let i = 0;
       i < roms.length;
       i++
     ) {
+      if (clientAborted) {
+        break
+      }
       const rom =
         roms[i]
+
+      send({
+        type: 'progress',
+        current: i,
+        total: roms.length,
+        remaining: roms.length - i,
+        percent:
+          roms.length > 0
+            ? Math.round((i / roms.length) * 100)
+            : 0,
+        rom: rom.name
+      })
 
       const base =
         strip(rom.name)
@@ -1781,6 +1833,17 @@ app.post('/api/scrape', async (req, res) => {
           '  SKIP: artwork já existe'
         )
 
+        send({
+          type: 'progress',
+          current: i + 1,
+          total: roms.length,
+          remaining: roms.length - (i + 1),
+          percent:
+            roms.length > 0
+              ? Math.round(((i + 1) / roms.length) * 100)
+              : 100
+        })
+
         continue
       }
 
@@ -1788,6 +1851,17 @@ app.post('/api/scrape', async (req, res) => {
         send(
           '  DRY-RUN: não consultando API'
         )
+
+        send({
+          type: 'progress',
+          current: i + 1,
+          total: roms.length,
+          remaining: roms.length - (i + 1),
+          percent:
+            roms.length > 0
+              ? Math.round(((i + 1) / roms.length) * 100)
+              : 100
+        })
 
         continue
       }
@@ -1838,7 +1912,18 @@ app.post('/api/scrape', async (req, res) => {
             '  NÃO ENCONTRADO'
           )
 
-          continue
+          send({
+          type: 'progress',
+          current: i + 1,
+          total: roms.length,
+          remaining: roms.length - (i + 1),
+          percent:
+            roms.length > 0
+              ? Math.round(((i + 1) / roms.length) * 100)
+              : 100
+        })
+
+        continue
         }
 
         send(
@@ -1992,19 +2077,42 @@ app.post('/api/scrape', async (req, res) => {
           }
         }
       } catch (error) {
-        send(
-          `  ERRO: ${error.message}`
-        )
+        if (!clientAborted) {
+          send(
+            `  ERRO: ${error.message}`
+          )
+        }
       }
+
+      send({
+        type: 'progress',
+        current: i + 1,
+        total: roms.length,
+        remaining: roms.length - (i + 1),
+        percent:
+          roms.length > 0
+            ? Math.round(((i + 1) / roms.length) * 100)
+            : 100
+      })
     }
 
-    send(
-      '=== FINALIZADO ==='
-    )
+    if (!clientAborted) {
+      send({
+        type: 'complete',
+        current: roms.length,
+        total: roms.length,
+        remaining: 0,
+        percent: 100,
+        message: '=== FINALIZADO ==='
+      })
+    }
   } catch (error) {
-    send(
-      `ERRO FATAL: ${error.message}`
-    )
+    if (!clientAborted) {
+      send({
+        type: 'error',
+        message: `ERRO FATAL: ${error.message}`
+      })
+    }
   } finally {
     if (sftp) {
       try {

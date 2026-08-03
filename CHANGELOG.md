@@ -1,5 +1,35 @@
 # Changelog
 
+## 6.4.0
+
+- Adiciona barra de progresso durante o scraping.
+- Exibe quantidade processada, total, percentual e ROMs restantes.
+- Mostra a ROM atualmente em processamento.
+- Adiciona botão Parar para interromper o scraping.
+- Aborta a requisição no frontend e encerra o loop no backend.
+- Fecha a conexão SFTP ao interromper o processo.
+- Adiciona suporte equivalente ao modo online.
+
+
+## 6.3.2
+
+- Move o card Cache SQLite para depois do card ROMs.
+- Faz o Cache SQLite ocupar toda a largura.
+- Alinha os checkboxes do card ROMs.
+- Uniformiza altura, espaçamento e largura das opções.
+- Mantém o botão Iniciar Scraper alinhado com os controles.
+- Melhora o comportamento responsivo da barra de opções.
+
+
+## 6.3.1
+
+- Corrige a regra de grid que mantinha o card ROMs em meia largura.
+- Faz o card ROMs ocupar obrigatoriamente as 12 colunas.
+- Coloca o card ROMs em uma linha exclusiva.
+- Evita que o card Cache SQLite seja esticado pela altura das ROMs.
+- Mantém comportamento responsivo em telas menores.
+
+
 ## 6.3.0
 
 - Remove o card separado de opções.

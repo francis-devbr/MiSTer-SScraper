@@ -1614,3 +1614,244 @@ button.small:hover:not(:disabled) {
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   CORREÇÃO DO GRID: ROMS EM LINHA EXCLUSIVA
+========================================================= */
+
+/*
+ * As regras nth-last-of-type possuem maior especificidade que
+ * uma classe simples. Por isso usamos .card.roms-card e definimos
+ * explicitamente o início/fim da grade.
+ */
+main > .card.roms-card {
+  grid-column: 1 / -1 !important;
+  width: 100%;
+  justify-self: stretch;
+}
+
+/*
+ * O cache permanece compacto em sua própria linha e não é
+ * esticado pela altura do card de ROMs.
+ */
+main > .card.cache-card {
+  align-self: start;
+  min-height: auto;
+}
+
+/*
+ * Garante que elementos posteriores não sejam colocados na
+ * mesma linha incompleta do card de ROMs.
+ */
+main > .card.roms-card + .card {
+  grid-column-start: 1;
+}
+
+@media (max-width: 900px) {
+  main > .card.cache-card {
+    grid-column: 1 / -1;
+  }
+}
+
+
+/* =========================================================
+   ORDEM E ALINHAMENTO: ROMS + CACHE
+========================================================= */
+
+main > .card.cache-card {
+  grid-column: 1 / -1 !important;
+  width: 100%;
+  justify-self: stretch;
+  align-self: start;
+  min-height: auto;
+}
+
+/* Barra de opções mais uniforme */
+.rom-options-panel {
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr))
+    minmax(180px, 220px);
+  align-items: stretch;
+}
+
+.rom-options-panel label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 48px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 14px;
+  line-height: 1.25;
+  box-sizing: border-box;
+}
+
+.rom-options-panel label input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--pink);
+}
+
+.rom-options-panel button {
+  min-height: 48px;
+  align-self: stretch;
+  white-space: nowrap;
+}
+
+/* Evita quebra visual desigual em textos maiores */
+.rom-options-panel label {
+  text-wrap: balance;
+}
+
+@media (max-width: 1180px) {
+  .rom-options-panel {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .rom-options-panel button {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 680px) {
+  .rom-options-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .rom-options-panel button {
+    grid-column: auto;
+  }
+}
+
+
+/* =========================================================
+   PROGRESSO E INTERRUPÇÃO DO SCRAPING
+========================================================= */
+
+.scrape-action-buttons,
+.online-scrape-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 9px;
+  min-width: 0;
+}
+
+.scrape-action-buttons button,
+.online-scrape-actions button {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.stop-scrape-button {
+  flex: 0 0 auto !important;
+  min-width: 100px;
+  border-color: rgba(255, 66, 109, 0.78) !important;
+  color: #fff !important;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 66, 109, 0.88),
+      rgba(176, 20, 67, 0.88)
+    ) !important;
+  box-shadow:
+    0 0 16px rgba(255, 66, 109, 0.24) !important;
+}
+
+.stop-scrape-button:hover {
+  box-shadow:
+    0 0 24px rgba(255, 66, 109, 0.48) !important;
+}
+
+.scrape-progress-panel {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(0, 245, 255, 0.32);
+  border-radius: 10px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(0, 245, 255, 0.045),
+      rgba(168, 85, 247, 0.065)
+    );
+}
+
+.scrape-progress-header,
+.scrape-progress-details {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scrape-progress-header strong {
+  color: var(--cyan);
+  font-family: "Orbitron", Arial, sans-serif;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.scrape-progress-header span,
+.scrape-progress-details {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.scrape-progress-track {
+  position: relative;
+  height: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 245, 255, 0.34);
+  border-radius: 999px;
+  background: rgba(2, 4, 14, 0.82);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.58);
+}
+
+.scrape-progress-fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      90deg,
+      var(--cyan),
+      var(--pink),
+      var(--purple)
+    );
+  box-shadow:
+    0 0 14px rgba(0, 245, 255, 0.45);
+  transition: width 220ms ease-out;
+}
+
+.scrape-current-rom {
+  overflow: hidden;
+  color: #d8e8f2;
+  font-size: 0.73rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 680px) {
+  .scrape-action-buttons,
+  .online-scrape-actions {
+    flex-direction: column;
+  }
+
+  .stop-scrape-button {
+    width: 100%;
+  }
+
+  .scrape-progress-header,
+  .scrape-progress-details {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+}

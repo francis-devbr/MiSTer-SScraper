@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 import OnlineApp from './online/OnlineApp.jsx'
@@ -214,6 +214,15 @@ function App() {
   const [cacheStats, setCacheStats] = useState(null)
   const [config, setConfig] = useState(null)
   const [running, setRunning] = useState(false)
+  const scrapeAbortController = useRef(null)
+  const scrapeStoppedByUser = useRef(false)
+  const [scrapeProgress, setScrapeProgress] = useState({
+    current: 0,
+    total: 0,
+    remaining: 0,
+    percent: 0,
+    rom: ''
+  })
   const [choosingDirectory, setChoosingDirectory] = useState(false)
   const [scanningRemote, setScanningRemote] = useState(false)
   const [remoteSuggestions, setRemoteSuggestions] = useState([])
@@ -895,14 +904,27 @@ function App() {
       return
     }
 
+    const controller = new AbortController()
+
+    scrapeAbortController.current = controller
+    scrapeStoppedByUser.current = false
+
     setRunning(true)
     setLogs([])
+    setScrapeProgress({
+      current: 0,
+      total: roms.length,
+      remaining: roms.length,
+      percent: 0,
+      rom: ''
+    })
 
     try {
       const connection = loadAgentConnection()
 
       const response = await fetch(agentUrl('/api/scrape'), {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization:
@@ -942,18 +964,102 @@ function App() {
 
           try {
             const event = JSON.parse(line)
-            addLog(event.message || JSON.stringify(event))
+
+            if (event.type === 'progress') {
+              setScrapeProgress(current => ({
+                ...current,
+                current:
+                  Number(event.current) || 0,
+                total:
+                  Number(event.total) || 0,
+                remaining:
+                  Number(event.remaining) || 0,
+                percent:
+                  Number(event.percent) || 0,
+                rom:
+                  event.rom || current.rom
+              }))
+              continue
+            }
+
+            if (event.type === 'complete') {
+              setScrapeProgress({
+                current: event.total || 0,
+                total: event.total || 0,
+                remaining: 0,
+                percent: 100,
+                rom: ''
+              })
+
+              addLog(
+                event.message || '=== FINALIZADO ==='
+              )
+
+              showModal({
+                type: 'success',
+                title: 'Scraping concluído',
+                message:
+                  `${event.total || 0} ROMs foram processadas.`,
+                details:
+                  'A lista será atualizada para refletir as novas capas e fundos.'
+              })
+              continue
+            }
+
+            if (event.type === 'error') {
+              addLog(event.message || 'Erro no scraping')
+              continue
+            }
+
+            addLog(
+              event.message ||
+              JSON.stringify(event)
+            )
           } catch {
             addLog(line)
           }
         }
       }
     } catch (error) {
-      addLog(`ERRO: ${error.message}`)
+      if (
+        error.name === 'AbortError' ||
+        scrapeStoppedByUser.current
+      ) {
+        addLog('PROCESSO INTERROMPIDO PELO USUÁRIO')
+
+        showModal({
+          type: 'info',
+          title: 'Scraping interrompido',
+          message:
+            'O processo foi parado pelo usuário.',
+          details:
+            `${scrapeProgress.current} de ${scrapeProgress.total} ROMs haviam sido processadas.`
+        })
+      } else {
+        addLog(`ERRO: ${error.message}`)
+
+        showModal({
+          type: 'error',
+          title: 'Erro durante o scraping',
+          message: error.message,
+          details:
+            'Consulte o log técnico para mais informações.'
+        })
+      }
     } finally {
+      scrapeAbortController.current = null
       setRunning(false)
       await loadRoms(selectedSystem, source)
     }
+  }
+
+  function stopScrape() {
+    if (!running) {
+      return
+    }
+
+    scrapeStoppedByUser.current = true
+    scrapeAbortController.current?.abort()
   }
 
   const remotePath =
@@ -1524,28 +1630,6 @@ function App() {
           </CollapsibleCard>
         )}
 
-        <CollapsibleCard
-          id="cache"
-          title="Cache SQLite"
-          badge={cacheStats?.entries ?? 0}
-          defaultCollapsed={true}
-          actions={
-            <button
-              className="small"
-              onClick={clearCache}
-              disabled={running}
-            >
-              Limpar cache
-            </button>
-          }
-        >
-          <div className="paths">
-            <div><b>Status:</b> {cacheStats?.enabled ? 'ativo' : 'desativado'}</div>
-            <div><b>Entradas:</b> {cacheStats?.entries ?? 0}</div>
-            <div><b>Reutilizações:</b> {cacheStats?.hits ?? 0}</div>
-            <div><b>Validade:</b> {cacheStats?.ttlDays ?? 0} dias</div>
-          </div>
-        </CollapsibleCard>
 
         <CollapsibleCard
           id="roms"
@@ -1610,27 +1694,85 @@ function App() {
               Simulação
             </label>
 
-            <button
-              onClick={startScrape}
-              disabled={
-                running ||
-                loadingRoms ||
-                !selectedSystem ||
-                (
-                  source === 'local' &&
-                  !current?.availableLocal
-                ) ||
-                (
-                  source === 'network' &&
-                  !current?.availableRemote
-                )
-              }
-            >
-              {running
-                ? 'Processando...'
-                : 'Iniciar Scraper'}
-            </button>
+            <div className="scrape-action-buttons">
+              <button
+                onClick={startScrape}
+                disabled={
+                  running ||
+                  loadingRoms ||
+                  !selectedSystem ||
+                  (
+                    source === 'local' &&
+                    !current?.availableLocal
+                  ) ||
+                  (
+                    source === 'network' &&
+                    !current?.availableRemote
+                  )
+                }
+              >
+                {running
+                  ? 'Processando...'
+                  : 'Iniciar Scraper'}
+              </button>
+
+              {running && (
+                <button
+                  type="button"
+                  className="stop-scrape-button"
+                  onClick={stopScrape}
+                >
+                  Parar
+                </button>
+              )}
+            </div>
           </div>
+
+          {running && (
+            <div className="scrape-progress-panel">
+              <div className="scrape-progress-header">
+                <strong>
+                  Processando ROMs
+                </strong>
+
+                <span>
+                  {scrapeProgress.current} / {scrapeProgress.total}
+                </span>
+              </div>
+
+              <div
+                className="scrape-progress-track"
+                role="progressbar"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow={scrapeProgress.percent}
+              >
+                <div
+                  className="scrape-progress-fill"
+                  style={{
+                    width: `${scrapeProgress.percent}%`
+                  }}
+                />
+              </div>
+
+              <div className="scrape-progress-details">
+                <span>
+                  {scrapeProgress.percent}% concluído
+                </span>
+
+                <span>
+                  Faltam {scrapeProgress.remaining}
+                </span>
+              </div>
+
+              {scrapeProgress.rom && (
+                <div className="scrape-current-rom">
+                  Atual: {scrapeProgress.rom}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="rom-toolbar">
             <div className="rom-page-info">
               Página {romPage} de {romPageCount}
@@ -1810,6 +1952,30 @@ function App() {
             </div>
           </CollapsibleCard>
         )}
+
+        <CollapsibleCard
+          id="cache"
+          title="Cache SQLite"
+          className="cache-card"
+          badge={cacheStats?.entries ?? 0}
+          defaultCollapsed={true}
+          actions={
+            <button
+              className="small"
+              onClick={clearCache}
+              disabled={running}
+            >
+              Limpar cache
+            </button>
+          }
+        >
+          <div className="paths">
+            <div><b>Status:</b> {cacheStats?.enabled ? 'ativo' : 'desativado'}</div>
+            <div><b>Entradas:</b> {cacheStats?.entries ?? 0}</div>
+            <div><b>Reutilizações:</b> {cacheStats?.hits ?? 0}</div>
+            <div><b>Validade:</b> {cacheStats?.ttlDays ?? 0} dias</div>
+          </div>
+        </CollapsibleCard>
 
         <CollapsibleCard
           id="log"
