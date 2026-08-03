@@ -42,3 +42,23 @@ modal. O log permanece como diagnóstico técnico.
 A API do ScreenScraper pode bloquear chamadas diretas feitas por um domínio
 hospedado. Nesse caso, será necessária uma função serverless/proxy no mesmo
 domínio. O modal informa claramente quando isso ocorrer.
+
+
+## Coleções em subpastas
+
+A varredura é recursiva. Cada diretório que contém ROMs recebe sua própria
+pasta `media`.
+
+Exemplo:
+
+```text
+MegaDrive/
+└── ROMS HACKS TRADUZIDAS !/
+    └── 12- ROMS T+TURCA !/
+        ├── Jogo Traduzido.bin
+        └── media/
+            ├── Jogo Traduzido.png
+            └── Jogo Traduzido-BG.png
+```
+
+Pastas chamadas `media` são ignoradas durante a busca de ROMs.

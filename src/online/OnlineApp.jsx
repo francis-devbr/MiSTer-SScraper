@@ -186,12 +186,17 @@ export default function OnlineApp() {
         folder: systemFolder
       })
 
+      const pathInsideSystem =
+        parts.slice(2, -1).join('/')
+
       mapped.push({
         file,
         name: file.name,
         relativePath: file.webkitRelativePath,
         systemId: platform.id,
-        systemFolder
+        systemFolder,
+        relativeDirectory:
+          pathInsideSystem || '.'
       })
     }
 
@@ -353,7 +358,10 @@ export default function OnlineApp() {
     setProgress({ current: 0, total: currentFiles.length })
 
     const zip = new JSZip()
-    const mediaFolder = zip.folder(`${platform.id}/media`)
+    const platformFolder =
+      systems.find(system =>
+        system.id === selectedSystem
+      )?.folder || platform.id
     let found = 0
     let missing = 0
     let failed = 0
@@ -375,6 +383,14 @@ export default function OnlineApp() {
 
           const base = stripExtension(item.name)
           const region = detectRegion(item.name)
+
+          const directoryPrefix =
+            item.relativeDirectory === '.'
+              ? platformFolder
+              : `${platformFolder}/${item.relativeDirectory}`
+
+          const mediaFolder =
+            zip.folder(`${directoryPrefix}/media`)
 
           await sleep(settings.delayMs)
           const box = await downloadMedia(platform, game.id, 'box-2D', region)
@@ -522,7 +538,11 @@ export default function OnlineApp() {
             {currentFiles.map(item => (
               <div className="rom" key={item.relativePath}>
                 <span>{item.name}</span>
-                <small>{item.systemFolder}</small>
+                <small>
+                  {item.relativeDirectory === '.'
+                    ? item.systemFolder
+                    : `${item.systemFolder}/${item.relativeDirectory}`}
+                </small>
               </div>
             ))}
             {!currentFiles.length && <p className="muted">Nenhuma ROM selecionada.</p>}

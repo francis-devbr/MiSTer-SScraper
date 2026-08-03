@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.1.0
+
+- Faz varredura recursiva de subpastas locais e remotas.
+- Ignora pastas `media` durante a varredura.
+- Cria uma pasta `media` em cada diretório que contém ROMs.
+- Preserva a hierarquia de subpastas no modo online e no ZIP.
+- Corrige preview de artwork para ROMs em subdiretórios.
+- Exibe o caminho relativo da coleção na lista e no log.
+
+
 ## 6.0.1
 
 - Corrige `showModal is not defined` no modo local.

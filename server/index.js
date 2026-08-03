@@ -404,7 +404,8 @@ function walk(dir, result = []) {
 }
 
 function romsForLocal(system) {
-  const files = walk(localGamesPath(system))
+  const systemRoot = localGamesPath(system)
+  const files = walk(systemRoot)
 
   const extensions = normalizeExtensions(
     system.extensions
@@ -420,12 +421,27 @@ function romsForLocal(system) {
     .map(file => {
       const name = path.basename(file)
       const base = strip(name)
-      const mediaPath = localMediaPath(system)
+      const romDirectory = path.dirname(file)
+      const mediaPath = path.join(
+        romDirectory,
+        'media'
+      )
+      const relativeDirectory =
+        path.relative(
+          systemRoot,
+          romDirectory
+        )
 
       return {
         name,
         path: file,
         base,
+        directory: romDirectory,
+        relativeDirectory:
+          relativeDirectory === ''
+            ? '.'
+            : relativeDirectory,
+        mediaPath,
         boxExists: fs.existsSync(
           path.join(mediaPath, `${base}.png`)
         ),
@@ -437,9 +453,7 @@ function romsForLocal(system) {
 }
 
 async function listRemoteFiles(sftp, system) {
-  const remotePath = remoteSystemPath(system)
-
-  const entries = await sftp.list(remotePath)
+  const systemRoot = remoteSystemPath(system)
 
   const extensions = normalizeExtensions(
     system.extensions
@@ -447,57 +461,101 @@ async function listRemoteFiles(sftp, system) {
 
   const result = []
 
-  for (const entry of entries) {
-    if (entry.type !== '-') {
-      continue
-    }
+  async function scanDirectory(directory) {
+    const entries = await sftp.list(directory)
 
-    const fileExt = ext(entry.name)
-
-    if (
-      extensions.length > 0 &&
-      !extensions.includes(fileExt)
-    ) {
-      continue
-    }
-
-    const base = strip(entry.name)
-
-    const mediaPath = remoteMediaPath(system)
-
-    let boxExists = false
-    let backgroundExists = false
-
-    try {
-      boxExists = await sftp.exists(
-        path.posix.join(mediaPath, `${base}.png`)
-      )
-    } catch {
-      boxExists = false
-    }
-
-    try {
-      backgroundExists = await sftp.exists(
-        path.posix.join(mediaPath, `${base}-BG.png`)
-      )
-    } catch {
-      backgroundExists = false
-    }
-
-    result.push({
-      name: entry.name,
-      path: path.posix.join(
-        remotePath,
+    for (const entry of entries) {
+      const fullPath = path.posix.join(
+        directory,
         entry.name
-      ),
-      base,
-      boxExists: Boolean(boxExists),
-      backgroundExists: Boolean(backgroundExists),
-      size: entry.size
-    })
+      )
+
+      if (entry.type === 'd') {
+        if (
+          entry.name.toLowerCase() !== 'media'
+        ) {
+          await scanDirectory(fullPath)
+        }
+
+        continue
+      }
+
+      if (entry.type !== '-') {
+        continue
+      }
+
+      const fileExt = ext(entry.name)
+
+      if (
+        extensions.length > 0 &&
+        !extensions.includes(fileExt)
+      ) {
+        continue
+      }
+
+      const base = strip(entry.name)
+      const mediaPath = path.posix.join(
+        directory,
+        'media'
+      )
+
+      let boxExists = false
+      let backgroundExists = false
+
+      try {
+        boxExists = Boolean(
+          await sftp.exists(
+            path.posix.join(
+              mediaPath,
+              `${base}.png`
+            )
+          )
+        )
+      } catch {
+        boxExists = false
+      }
+
+      try {
+        backgroundExists = Boolean(
+          await sftp.exists(
+            path.posix.join(
+              mediaPath,
+              `${base}-BG.png`
+            )
+          )
+        )
+      } catch {
+        backgroundExists = false
+      }
+
+      const relativeDirectory =
+        path.posix.relative(
+          systemRoot,
+          directory
+        )
+
+      result.push({
+        name: entry.name,
+        path: fullPath,
+        base,
+        directory,
+        relativeDirectory:
+          relativeDirectory === ''
+            ? '.'
+            : relativeDirectory,
+        mediaPath,
+        boxExists,
+        backgroundExists,
+        size: entry.size
+      })
+    }
   }
 
-  return result
+  await scanDirectory(systemRoot)
+
+  return result.sort((a, b) =>
+    a.path.localeCompare(b.path)
+  )
 }
 
 /*
@@ -945,11 +1003,40 @@ app.get('/api/artwork', async (req, res) => {
 
   try {
     if (source === 'local') {
-      const mediaRoot = path.resolve(localMediaPath(system))
-      const file = path.resolve(mediaRoot, fileName)
+      const systemRoot =
+        path.resolve(localGamesPath(system))
 
-      if (!file.startsWith(mediaRoot + path.sep) && file !== mediaRoot) {
-        return res.status(400).json({ error: 'Caminho de artwork inválido.' })
+      const absoluteRomPath =
+        path.resolve(romPath)
+
+      if (
+        absoluteRomPath !== systemRoot &&
+        !absoluteRomPath.startsWith(
+          systemRoot + path.sep
+        )
+      ) {
+        return res.status(400).json({
+          error: 'Caminho da ROM fora do sistema.'
+        })
+      }
+
+      const mediaRoot = path.resolve(
+        path.dirname(absoluteRomPath),
+        'media'
+      )
+
+      const file = path.resolve(
+        mediaRoot,
+        fileName
+      )
+
+      if (
+        file !== mediaRoot &&
+        !file.startsWith(mediaRoot + path.sep)
+      ) {
+        return res.status(400).json({
+          error: 'Caminho de artwork inválido.'
+        })
       }
 
       if (!fs.existsSync(file)) {
@@ -963,8 +1050,26 @@ app.get('/api/artwork', async (req, res) => {
       await scanRemotePlatforms()
     }
 
+    const systemRoot =
+      remoteSystemPath(system)
+
+    const normalizedRomPath =
+      path.posix.normalize(romPath)
+
+    if (
+      normalizedRomPath !== systemRoot &&
+      !normalizedRomPath.startsWith(
+        `${systemRoot}/`
+      )
+    ) {
+      return res.status(400).json({
+        error: 'Caminho remoto fora do sistema.'
+      })
+    }
+
     const remoteFile = path.posix.join(
-      remoteMediaPath(system),
+      path.posix.dirname(normalizedRomPath),
+      'media',
       fileName
     )
 
@@ -1556,13 +1661,6 @@ app.post('/api/scrape', async (req, res) => {
         )
       }
 
-      fs.mkdirSync(
-        localMediaPath(system),
-        {
-          recursive: true
-        }
-      )
-
       roms =
         romsForLocal(system)
 
@@ -1575,7 +1673,7 @@ app.post('/api/scrape', async (req, res) => {
       )
 
       send(
-        `Media: ${localMediaPath(system)}`
+        'Media: criada em cada diretório que contém ROMs'
       )
     }
 
@@ -1617,15 +1715,12 @@ app.post('/api/scrape', async (req, res) => {
       const remotePath =
         remoteSystemPath(system)
 
-      const remoteMedia =
-        remoteMediaPath(system)
-
       send(
         `ROMs: ${remotePath}`
       )
 
       send(
-        `Media: ${remoteMedia}`
+        'Media: criada em cada diretório remoto que contém ROMs'
       )
 
       const exists =
@@ -1638,15 +1733,6 @@ app.post('/api/scrape', async (req, res) => {
           `Diretório remoto não encontrado: ${remotePath}`
         )
       }
-
-      /*
-       * Cria media se não existir.
-       */
-
-      await sftp.mkdir(
-        remoteMedia,
-        true
-      )
 
       roms =
         await listRemoteFiles(
@@ -1671,7 +1757,12 @@ app.post('/api/scrape', async (req, res) => {
         strip(rom.name)
 
       send(
-        `[${i + 1}/${roms.length}] ${rom.name}`
+        `[${i + 1}/${roms.length}] ${
+          rom.relativeDirectory &&
+          rom.relativeDirectory !== '.'
+            ? `${rom.relativeDirectory}/`
+            : ''
+        }${rom.name}`
       )
 
       /*
@@ -1778,9 +1869,14 @@ app.post('/api/scrape', async (req, res) => {
 
           if (data) {
             if (source === 'network') {
+              await sftp.mkdir(
+                rom.mediaPath,
+                true
+              )
+
               const remoteFile =
                 path.posix.join(
-                  remoteMediaPath(system),
+                  rom.mediaPath,
                   `${base}.png`
                 )
 
@@ -1793,9 +1889,16 @@ app.post('/api/scrape', async (req, res) => {
                 `  BOX enviada: ${remoteFile}`
               )
             } else {
+              fs.mkdirSync(
+                rom.mediaPath,
+                {
+                  recursive: true
+                }
+              )
+
               const localFile =
                 path.join(
-                  localMediaPath(system),
+                  rom.mediaPath,
                   `${base}.png`
                 )
 
@@ -1840,9 +1943,14 @@ app.post('/api/scrape', async (req, res) => {
 
           if (data) {
             if (source === 'network') {
+              await sftp.mkdir(
+                rom.mediaPath,
+                true
+              )
+
               const remoteFile =
                 path.posix.join(
-                  remoteMediaPath(system),
+                  rom.mediaPath,
                   `${base}-BG.png`
                 )
 
@@ -1855,9 +1963,16 @@ app.post('/api/scrape', async (req, res) => {
                 `  BG enviada: ${remoteFile}`
               )
             } else {
+              fs.mkdirSync(
+                rom.mediaPath,
+                {
+                  recursive: true
+                }
+              )
+
               const localFile =
                 path.join(
-                  localMediaPath(system),
+                  rom.mediaPath,
                   `${base}-BG.png`
                 )
 

@@ -1546,7 +1546,13 @@ function App() {
                 key={rom.path}
                 onClick={() => setSelectedRom(rom)}
               >
-                <span>{rom.name}</span>
+                <span>
+                  {rom.relativeDirectory &&
+                  rom.relativeDirectory !== '.'
+                    ? `${rom.relativeDirectory}/`
+                    : ''}
+                  {rom.name}
+                </span>
                 <small>
                   {rom.boxExists ? '🖼 capa' : '○ capa'}{' '}
                   {rom.backgroundExists ? '🖼 BG' : '○ BG'}
