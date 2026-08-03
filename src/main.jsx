@@ -2,10 +2,49 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 
+const AGENT_STORAGE_KEY =
+  'mister-sscraper-agent-connection'
+
+function loadAgentConnection() {
+  try {
+    return JSON.parse(
+      localStorage.getItem(AGENT_STORAGE_KEY) ||
+      '{}'
+    )
+  } catch {
+    return {}
+  }
+}
+
+function saveAgentConnection(connection) {
+  localStorage.setItem(
+    AGENT_STORAGE_KEY,
+    JSON.stringify(connection)
+  )
+}
+
+function agentUrl(pathname) {
+  const connection = loadAgentConnection()
+  const baseUrl = String(
+    connection.baseUrl ||
+    'http://127.0.0.1:3001'
+  ).replace(/\/$/, '')
+
+  return `${baseUrl}${pathname}`
+}
+
 const api = async (url, options = {}) => {
-  const response = await fetch(url, {
+  const connection = loadAgentConnection()
+
+  const response = await fetch(agentUrl(url), {
     headers: {
       'Content-Type': 'application/json',
+      ...(connection.token
+        ? {
+            Authorization:
+              `Bearer ${connection.token}`
+          }
+        : {}),
       ...(options.headers || {})
     },
     ...options
@@ -103,6 +142,51 @@ function CollapsibleCard({
 }
 
 function App() {
+  const initialConnection = loadAgentConnection()
+
+  const [agentConnection, setAgentConnection] = useState({
+    baseUrl:
+      initialConnection.baseUrl ||
+      'http://127.0.0.1:3001',
+    token:
+      initialConnection.token ||
+      ''
+  })
+
+  const [agentOnline, setAgentOnline] = useState(false)
+  const [showSettings, setShowSettings] = useState(true)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [testingScreenScraper, setTestingScreenScraper] = useState(false)
+  const [testingMister, setTestingMister] = useState(false)
+  const [modal, setModal] = useState({
+    open: false,
+    type: 'info',
+    title: '',
+    message: '',
+    details: ''
+  })
+  const [settingsForm, setSettingsForm] = useState({
+    gamesBasePath: '',
+    screenscraper: {
+      devid: '',
+      devpassword: '',
+      ssid: '',
+      sspassword: '',
+      softname: 'MiSTerConsoleModeScraper',
+      delayMs: 1500,
+      boxartMedia: 'box-2D',
+      backgroundMedia: 'ss',
+      defaultRegion: 'us'
+    },
+    mister: {
+      host: '',
+      port: 22,
+      username: 'root',
+      password: '',
+      remoteBasePath: '/media/fat/games'
+    }
+  })
+
   const [systems, setSystems] = useState([])
   const [selectedSystem, setSelectedSystem] = useState('')
   const [source, setSource] = useState('local')
@@ -146,7 +230,7 @@ function App() {
   )
 
   useEffect(() => {
-    loadConfig()
+    connectAgent()
   }, [])
 
   useEffect(() => {
@@ -174,6 +258,188 @@ function App() {
       systemeid: current.systemeid ?? ''
     })
   }, [current])
+
+  async function connectAgent() {
+    saveAgentConnection(agentConnection)
+
+    try {
+      const infoResponse = await fetch(
+        `${String(agentConnection.baseUrl).replace(/\/$/, '')}/api/agent/info`
+      )
+
+      if (!infoResponse.ok) {
+        throw new Error(
+          `Agente HTTP ${infoResponse.status}`
+        )
+      }
+
+      setAgentOnline(true)
+
+      if (!agentConnection.token) {
+        addLog(
+          'Agente encontrado. Informe o token exibido no terminal do agente.'
+        )
+        return
+      }
+
+      await loadSettings()
+      await loadConfig()
+    } catch (error) {
+      setAgentOnline(false)
+      addLog(
+        `Agente local indisponível: ${error.message}`
+      )
+    }
+  }
+
+  async function loadSettings() {
+    const data = await api('/api/settings')
+    const settings = data.settings || {}
+
+    setSettingsForm(current => ({
+      ...current,
+      gamesBasePath:
+        settings.gamesBasePath || '',
+      screenscraper: {
+        ...current.screenscraper,
+        ...(settings.screenscraper || {}),
+        devpassword: '',
+        sspassword: ''
+      },
+      mister: {
+        ...current.mister,
+        ...(settings.mister || {}),
+        password: ''
+      }
+    }))
+
+    setShowSettings(!settings.configured)
+  }
+
+  async function saveSettingsForm({ closeSettings = true } = {}) {
+    setSavingSettings(true)
+
+    try {
+      const data = await api('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify(settingsForm)
+      })
+
+      addLog('Configurações salvas no agente local.')
+      setSettingsForm(current => ({
+        ...current,
+        screenscraper: {
+          ...current.screenscraper,
+          devpassword: '',
+          sspassword: ''
+        },
+        mister: {
+          ...current.mister,
+          password: ''
+        }
+      }))
+
+      if (closeSettings) {
+        setShowSettings(false)
+      }
+
+      await loadConfig()
+      return data
+    } catch (error) {
+      addLog(
+        `ERRO ao salvar configurações: ${error.message}`
+      )
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  async function testScreenScraper() {
+    setTestingScreenScraper(true)
+
+    try {
+      await saveSettingsForm({
+        closeSettings: false
+      })
+
+      const data = await api(
+        '/api/settings/test-screenscraper',
+        { method: 'POST' }
+      )
+
+      addLog(
+        data.message ||
+        'Credenciais ScreenScraper validadas.'
+      )
+
+      showModal({
+        type: 'success',
+        title: 'ScreenScraper conectado',
+        message:
+          data.message ||
+          'As credenciais foram validadas com sucesso.'
+      })
+    } catch (error) {
+      const message =
+        error?.message ||
+        'Não foi possível validar o ScreenScraper.'
+
+      addLog(`ERRO ScreenScraper: ${message}`)
+
+      showModal({
+        type: 'error',
+        title: 'Erro no ScreenScraper',
+        message,
+        details:
+          'Confira Developer ID, Developer Password, usuário e senha do ScreenScraper.'
+      })
+    } finally {
+      setTestingScreenScraper(false)
+    }
+  }
+
+  async function testMisterConnection() {
+    setTestingMister(true)
+
+    try {
+      await saveSettingsForm({
+        closeSettings: false
+      })
+
+      const data = await api('/api/mister/test')
+
+      const message =
+        data.message ||
+        'Conexão SSH/SFTP realizada com sucesso.'
+
+      addLog(message)
+
+      showModal({
+        type: 'success',
+        title: 'MiSTer conectado',
+        message,
+        details: data.remoteBasePath
+          ? `Pasta remota: ${data.remoteBasePath}`
+          : ''
+      })
+    } catch (error) {
+      const message =
+        error?.message ||
+        'Não foi possível conectar ao MiSTer.'
+
+      addLog(`ERRO MiSTer: ${message}`)
+
+      showModal({
+        type: 'error',
+        title: 'Erro ao conectar no MiSTer',
+        message,
+        details:
+          'Confira IP, porta, usuário, senha SSH e se o MiSTer está ligado na mesma rede.'
+      })
+    } finally {
+      setTestingMister(false)
+    }
+  }
 
   function addLog(text) {
     setLogs(currentLogs => [
@@ -461,7 +727,18 @@ function App() {
       type
     })
 
-    return `/api/artwork?${params.toString()}`
+    const connection = loadAgentConnection()
+
+    if (connection.token) {
+      params.set(
+        'agentToken',
+        connection.token
+      )
+    }
+
+    return agentUrl(
+      `/api/artwork?${params.toString()}`
+    )
   }
 
   async function startScrape() {
@@ -473,10 +750,14 @@ function App() {
     setLogs([])
 
     try {
-      const response = await fetch('/api/scrape', {
+      const connection = loadAgentConnection()
+
+      const response = await fetch(agentUrl('/api/scrape'), {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          Authorization:
+            `Bearer ${connection.token || ''}`
         },
         body: JSON.stringify({
           system: selectedSystem,
@@ -537,12 +818,274 @@ function App() {
           <p>Artwork para Console Mode</p>
         </div>
 
-        <span className={`status ${running ? 'running' : ''}`}>
-          {running ? 'SCRAPING' : 'PRONTO'}
-        </span>
+        <div className="header-controls">
+          <button
+            className="small settings-toggle"
+            onClick={() => setShowSettings(!showSettings)}
+          >
+            Configurações
+          </button>
+
+          <span
+            className={`status ${
+              running
+                ? 'running'
+                : agentOnline
+                  ? ''
+                  : 'offline'
+            }`}
+          >
+            {running
+              ? 'SCRAPING'
+              : agentOnline
+                ? 'AGENTE ONLINE'
+                : 'AGENTE OFFLINE'}
+          </span>
+        </div>
       </header>
 
       <main>
+        {showSettings && (
+          <CollapsibleCard
+            id="agent-settings"
+            title="Configurações do agente"
+            className="settings-card"
+          >
+            <div className="settings-grid">
+              <div className="settings-section">
+                <h3>Conexão com o agente local</h3>
+
+                <label className="field">
+                  URL do agente
+                  <input
+                    type="text"
+                    value={agentConnection.baseUrl}
+                    onChange={event =>
+                      setAgentConnection({
+                        ...agentConnection,
+                        baseUrl: event.target.value
+                      })
+                    }
+                    placeholder="http://127.0.0.1:3001"
+                  />
+                </label>
+
+                <label className="field">
+                  Token do agente
+                  <input
+                    type="password"
+                    value={agentConnection.token}
+                    onChange={event =>
+                      setAgentConnection({
+                        ...agentConnection,
+                        token: event.target.value
+                      })
+                    }
+                    placeholder="Cole o token exibido no terminal"
+                  />
+                </label>
+
+                <button onClick={connectAgent}>
+                  Conectar ao agente
+                </button>
+
+                <p className="settings-note">
+                  A URL e o token ficam no localStorage deste navegador.
+                  As senhas não ficam no navegador.
+                </p>
+              </div>
+
+              <div className="settings-section">
+                <h3>ScreenScraper</h3>
+
+                <label className="field">
+                  Developer ID
+                  <input
+                    value={settingsForm.screenscraper.devid}
+                    onChange={event =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        screenscraper: {
+                          ...settingsForm.screenscraper,
+                          devid: event.target.value
+                        }
+                      })
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  Developer Password
+                  <input
+                    type="password"
+                    value={settingsForm.screenscraper.devpassword}
+                    onChange={event =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        screenscraper: {
+                          ...settingsForm.screenscraper,
+                          devpassword: event.target.value
+                        }
+                      })
+                    }
+                    placeholder="Deixe vazio para manter"
+                  />
+                </label>
+
+                <label className="field">
+                  Usuário ScreenScraper
+                  <input
+                    value={settingsForm.screenscraper.ssid}
+                    onChange={event =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        screenscraper: {
+                          ...settingsForm.screenscraper,
+                          ssid: event.target.value
+                        }
+                      })
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  Senha ScreenScraper
+                  <input
+                    type="password"
+                    value={settingsForm.screenscraper.sspassword}
+                    onChange={event =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        screenscraper: {
+                          ...settingsForm.screenscraper,
+                          sspassword: event.target.value
+                        }
+                      })
+                    }
+                    placeholder="Deixe vazio para manter"
+                  />
+                </label>
+
+                <button
+                  className="small"
+                  onClick={testScreenScraper}
+                  disabled={testingScreenScraper}
+                >
+                  {testingScreenScraper
+                    ? 'Testando...'
+                    : 'Testar ScreenScraper'}
+                </button>
+              </div>
+
+              <div className="settings-section">
+                <h3>MiSTer</h3>
+
+                <label className="field">
+                  IP ou hostname
+                  <input
+                    value={settingsForm.mister.host}
+                    onChange={event =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        mister: {
+                          ...settingsForm.mister,
+                          host: event.target.value
+                        }
+                      })
+                    }
+                    placeholder="192.168.50.82"
+                  />
+                </label>
+
+                <label className="field">
+                  Porta SSH
+                  <input
+                    type="number"
+                    value={settingsForm.mister.port}
+                    onChange={event =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        mister: {
+                          ...settingsForm.mister,
+                          port: Number(event.target.value)
+                        }
+                      })
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  Usuário SSH
+                  <input
+                    value={settingsForm.mister.username}
+                    onChange={event =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        mister: {
+                          ...settingsForm.mister,
+                          username: event.target.value
+                        }
+                      })
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  Senha SSH
+                  <input
+                    type="password"
+                    value={settingsForm.mister.password}
+                    onChange={event =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        mister: {
+                          ...settingsForm.mister,
+                          password: event.target.value
+                        }
+                      })
+                    }
+                    placeholder="Deixe vazio para manter"
+                  />
+                </label>
+
+                <label className="field">
+                  Pasta remota
+                  <input
+                    value={settingsForm.mister.remoteBasePath}
+                    onChange={event =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        mister: {
+                          ...settingsForm.mister,
+                          remoteBasePath: event.target.value
+                        }
+                      })
+                    }
+                  />
+                </label>
+
+                <button
+                  className="small"
+                  onClick={testMisterConnection}
+                  disabled={testingMister}
+                >
+                  {testingMister
+                    ? 'Testando...'
+                    : 'Testar MiSTer'}
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={saveSettingsForm}
+              disabled={savingSettings}
+            >
+              {savingSettings
+                ? 'Salvando...'
+                : 'Salvar no agente local'}
+            </button>
+          </CollapsibleCard>
+        )}
         <CollapsibleCard
           id="source"
           title="Fonte dos jogos"
@@ -999,6 +1542,56 @@ function App() {
           </pre>
         </CollapsibleCard>
       </main>
+
+      {modal.open && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) {
+              closeModal()
+            }
+          }}
+        >
+          <div
+            className={`feedback-modal modal-${modal.type}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="feedback-modal-title"
+          >
+            <div className="feedback-modal-icon" aria-hidden="true">
+              {modal.type === 'success'
+                ? '✓'
+                : modal.type === 'error'
+                  ? '!'
+                  : 'i'}
+            </div>
+
+            <div className="feedback-modal-content">
+              <h2 id="feedback-modal-title">
+                {modal.title}
+              </h2>
+
+              <p>{modal.message}</p>
+
+              {modal.details && (
+                <pre className="feedback-modal-details">
+                  {modal.details}
+                </pre>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="modal-close-button"
+              onClick={closeModal}
+              autoFocus
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

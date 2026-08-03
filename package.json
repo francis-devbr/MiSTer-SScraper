@@ -1,6 +1,6 @@
 {
   "name": "mister-sscraper",
-  "version": "4.0.0",
+  "version": "5.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,10 @@
     "start": "node server/index.js",
     "check": "node --check server/index.js && node --check server/platformCatalog.js && node --check server/cache.js",
     "test": "node --test",
-    "ci": "npm run check && npm test && npm run build"
+    "ci": "npm run check && npm test && npm run build",
+    "agent": "node server/index.js",
+    "dev:web": "vite",
+    "dev:agent": "node --watch server/index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

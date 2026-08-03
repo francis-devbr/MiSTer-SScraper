@@ -24,7 +24,7 @@
     "basePath": ""
   },
   "mister": {
-    "host": "192.168.1.100",
+    "host": "",
     "port": 22,
     "username": "root",
     "password": "",
@@ -43,5 +43,13 @@
   "scraping": {
     "concurrency": 1,
     "skipCachedSearches": true
+  },
+  "agent": {
+    "host": "127.0.0.1",
+    "port": 3001,
+    "allowedOrigins": [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173"
+    ]
   }
 }

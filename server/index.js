@@ -11,6 +11,7 @@ import { promisify } from 'util'
 import SftpClient from 'ssh2-sftp-client'
 import { createPlatformCatalog } from './platformCatalog.js'
 import { createGameCache } from './cache.js'
+import { createAgentSettings } from './agentSettings.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
@@ -69,31 +70,17 @@ const gameCache = createGameCache({
   enabled: config.cache?.enabled !== false
 })
 
-function loadSettings() {
-  if (!fs.existsSync(settingsPath)) {
-    return {}
-  }
+const agentSettings = createAgentSettings({
+  settingsFile: settingsPath,
+  defaults: config
+})
 
-  try {
-    return JSON.parse(fs.readFileSync(settingsPath, 'utf8'))
-  } catch {
-    return {}
-  }
+function runtimeConfig() {
+  return agentSettings.effectiveConfig()
 }
-
-function saveSettings(settings) {
-  fs.writeFileSync(
-    settingsPath,
-    JSON.stringify(settings, null, 2),
-    'utf8'
-  )
-}
-
-const savedSettings = loadSettings()
 
 let selectedGamesBasePath =
-  savedSettings.gamesBasePath ||
-  config.games?.basePath ||
+  runtimeConfig().games?.basePath ||
   ''
 
 const platformCatalog = createPlatformCatalog({
@@ -139,8 +126,70 @@ refreshDetectedPlatforms()
 
 const app = express()
 
-app.use(cors())
+const allowedOrigins = new Set([
+  ...(runtimeConfig().agent?.allowedOrigins || []),
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
+])
+
+app.use(cors({
+  origin(origin, callback) {
+    if (
+      !origin ||
+      allowedOrigins.has(origin) ||
+      process.env.AGENT_ALLOW_ANY_ORIGIN === '1'
+    ) {
+      return callback(null, true)
+    }
+
+    return callback(
+      new Error(`Origem não autorizada: ${origin}`)
+    )
+  }
+}))
+
 app.use(express.json({ limit: '1mb' }))
+
+app.get('/api/agent/info', (req, res) => {
+  res.json({
+    name: 'MiSTer S-Scraper Local Agent',
+    version: '5.0.0',
+    online: true,
+    configured:
+      agentSettings.getPublic().configured
+  })
+})
+
+app.use('/api', (req, res, next) => {
+  if (req.path === '/agent/info') {
+    return next()
+  }
+
+  const authorization =
+    String(req.headers.authorization || '')
+
+  const bearer = authorization.startsWith('Bearer ')
+    ? authorization.slice(7)
+    : ''
+
+  const queryToken =
+    req.path === '/artwork'
+      ? String(req.query.agentToken || '')
+      : ''
+
+  if (
+    !agentSettings.validateToken(
+      bearer || queryToken
+    )
+  ) {
+    return res.status(401).json({
+      error:
+        'Token do agente ausente ou inválido.'
+    })
+  }
+
+  next()
+})
 
 /*
 |--------------------------------------------------------------------------
@@ -285,22 +334,22 @@ function systemView(system) {
     remotePath:
       remoteFolder
         ? path.posix.join(
-            config.mister.remoteBasePath,
+            runtimeConfig().mister.remoteBasePath,
             remoteFolder
           )
         : path.posix.join(
-            config.mister.remoteBasePath,
+            runtimeConfig().mister.remoteBasePath,
             system.id
           ),
     remoteMediaPath:
       remoteFolder
         ? path.posix.join(
-            config.mister.remoteBasePath,
+            runtimeConfig().mister.remoteBasePath,
             remoteFolder,
             'media'
           )
         : path.posix.join(
-            config.mister.remoteBasePath,
+            runtimeConfig().mister.remoteBasePath,
             system.id,
             'media'
           ),
@@ -314,7 +363,7 @@ function systemView(system) {
 
 function remoteSystemPath(system) {
   return path.posix.join(
-    config.mister.remoteBasePath,
+    runtimeConfig().mister.remoteBasePath,
     systemFolderName(system)
   )
 }
@@ -465,10 +514,10 @@ function createSftp() {
 
     async connect() {
       await sftp.connect({
-        host: config.mister.host,
-        port: Number(config.mister.port || 22),
-        username: config.mister.username,
-        password: config.mister.password
+        host: runtimeConfig().mister.host,
+        port: Number(runtimeConfig().mister.port || 22),
+        username: runtimeConfig().mister.username,
+        password: runtimeConfig().mister.password
       })
     }
   }
@@ -576,7 +625,7 @@ function enc(value) {
 }
 
 function baseParams() {
-  const ss = config.screenscraper
+  const ss = runtimeConfig().screenscraper
 
   let query =
     `devid=${enc(ss.devid)}` +
@@ -727,19 +776,112 @@ function sleep(ms) {
 
 /*
 |--------------------------------------------------------------------------
+| CONFIGURAÇÕES LOCAIS DO AGENTE
+|--------------------------------------------------------------------------
+*/
+
+app.get('/api/settings', (req, res) => {
+  res.json({
+    settings: agentSettings.getPublic()
+  })
+})
+
+app.put('/api/settings', (req, res) => {
+  try {
+    const settings =
+      agentSettings.update(req.body || {})
+
+    selectedGamesBasePath =
+      settings.gamesBasePath || ''
+
+    refreshDetectedPlatforms()
+    resetRemoteDetection()
+
+    return res.json({
+      success: true,
+      settings
+    })
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message
+    })
+  }
+})
+
+app.post('/api/settings/test-screenscraper', async (req, res) => {
+  try {
+    const ss = runtimeConfig().screenscraper
+
+    if (
+      !ss?.devid ||
+      !ss?.devpassword ||
+      !ss?.ssid ||
+      !ss?.sspassword
+    ) {
+      return res.status(400).json({
+        error:
+          'Preencha todas as credenciais do ScreenScraper.'
+      })
+    }
+
+    const params = new URLSearchParams({
+      devid: ss.devid,
+      devpassword: ss.devpassword,
+      softname:
+        ss.softname ||
+        'MiSTerConsoleModeScraper',
+      ssid: ss.ssid,
+      sspassword: ss.sspassword,
+      output: 'json'
+    })
+
+    const response = await fetch(
+      `https://api.screenscraper.fr/api2/ssuserInfos.php?${params}`
+    )
+
+    const text = await response.text()
+
+    if (!response.ok) {
+      throw new Error(
+        `ScreenScraper HTTP ${response.status}: ${text.slice(0, 200)}`
+      )
+    }
+
+    if (/Erreur de login/i.test(text)) {
+      throw new Error(
+        'ScreenScraper rejeitou as credenciais.'
+      )
+    }
+
+    return res.json({
+      success: true,
+      message:
+        'Credenciais ScreenScraper validadas.'
+    })
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message
+    })
+  }
+})
+
+/*
+|--------------------------------------------------------------------------
 | CONFIG
 |--------------------------------------------------------------------------
 */
 
 app.get('/api/config', (req, res) => {
+  const publicSettings =
+    agentSettings.getPublic()
+
   res.json({
     games: {
       basePath: selectedGamesBasePath
     },
 
-    cache: gameCache.stats(),
-
-    systems: detectedPlatforms.map(systemView),
+    systems:
+      detectedPlatforms.map(systemView),
 
     suggestions: {
       local: localFolderSuggestions,
@@ -747,11 +889,15 @@ app.get('/api/config', (req, res) => {
     },
 
     mister: {
-      host: config.mister.host,
-      port: config.mister.port,
-      username: config.mister.username,
-      remoteBasePath: config.mister.remoteBasePath,
+      ...publicSettings.mister,
       scanCompleted: remoteScanCompleted
+    },
+
+    screenscraper:
+      publicSettings.screenscraper,
+
+    agent: {
+      version: '5.0.0'
     }
   })
 })
@@ -923,10 +1069,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
 
     selectedGamesBasePath = path.resolve(selectedPath)
 
-    saveSettings({
-      ...loadSettings(),
-      gamesBasePath: selectedGamesBasePath
-    })
+    agentSettings.update({ gamesBasePath: selectedGamesBasePath })
 
     refreshDetectedPlatforms()
 
@@ -967,10 +1110,7 @@ app.post('/api/local/set-directory', (req, res) => {
   selectedGamesBasePath =
     path.resolve(selectedPath)
 
-  saveSettings({
-    ...loadSettings(),
-    gamesBasePath: selectedGamesBasePath
-  })
+  agentSettings.update({ gamesBasePath: selectedGamesBasePath })
 
   refreshDetectedPlatforms()
 
@@ -1102,7 +1242,7 @@ async function scanRemotePlatforms() {
     await connection.connect()
 
     const entries = await connection.sftp.list(
-      config.mister.remoteBasePath
+      runtimeConfig().mister.remoteBasePath
     )
 
     const folders = entries
@@ -1230,7 +1370,7 @@ app.get('/api/mister/test', async (req, res) => {
 
     const rootExists =
       await sftp.exists(
-        config.mister.remoteBasePath
+        runtimeConfig().mister.remoteBasePath
       )
 
     await sftp.end()
@@ -1239,7 +1379,7 @@ app.get('/api/mister/test', async (req, res) => {
       success: true,
       message: 'Conexão SFTP realizada com sucesso.',
       remoteBasePath:
-        config.mister.remoteBasePath,
+        runtimeConfig().mister.remoteBasePath,
       rootExists: Boolean(rootExists)
     })
   } catch (error) {
@@ -1288,7 +1428,7 @@ app.get('/api/roms', async (req, res) => {
       if (!remoteSystem?.availableRemote) {
         return res.status(404).json({
           error:
-            `Pasta remota da plataforma não encontrada em ${config.mister.remoteBasePath}.`
+            `Pasta remota da plataforma não encontrada em ${runtimeConfig().mister.remoteBasePath}.`
         })
       }
 
@@ -1455,7 +1595,7 @@ app.post('/api/scrape', async (req, res) => {
 
       if (!remoteSystem?.availableRemote) {
         throw new Error(
-          `Pasta remota da plataforma não encontrada em ${config.mister.remoteBasePath}.`
+          `Pasta remota da plataforma não encontrada em ${runtimeConfig().mister.remoteBasePath}.`
         )
       }
 
@@ -1463,7 +1603,7 @@ app.post('/api/scrape', async (req, res) => {
         remoteSystem.detectedFolder
 
       send(
-        `Conectando ao MiSTer ${config.mister.host}...`
+        `Conectando ao MiSTer ${runtimeConfig().mister.host}...`
       )
 
       const connection =
@@ -1625,14 +1765,14 @@ app.post('/api/scrape', async (req, res) => {
           !rom.boxExists
         ) {
           await sleep(
-            config.screenscraper.delayMs || 1500
+            runtimeConfig().screenscraper.delayMs || 1500
           )
 
           const data =
             await downloadMedia(
               system,
               game,
-              config.screenscraper.boxartMedia ||
+              runtimeConfig().screenscraper.boxartMedia ||
                 'box-2D'
             )
 
@@ -1687,14 +1827,14 @@ app.post('/api/scrape', async (req, res) => {
           )
         ) {
           await sleep(
-            config.screenscraper.delayMs || 1500
+            runtimeConfig().screenscraper.delayMs || 1500
           )
 
           const data =
             await downloadMedia(
               system,
               game,
-              config.screenscraper.backgroundMedia ||
+              runtimeConfig().screenscraper.backgroundMedia ||
                 'ss'
             )
 
@@ -1807,26 +1947,46 @@ app.use((req, res, next) => {
 |--------------------------------------------------------------------------
 */
 
-const PORT = 3001
+const PORT =
+  Number(
+    process.env.AGENT_PORT ||
+    runtimeConfig().agent?.port ||
+    3001
+  )
+
+const HOST =
+  process.env.AGENT_HOST ||
+  runtimeConfig().agent?.host ||
+  '127.0.0.1'
 
 app.listen(
   PORT,
-  '0.0.0.0',
+  HOST,
   () => {
     console.log(
-      `API: http://localhost:${PORT}`
+      `Agente local: http://${HOST}:${PORT}`
     )
 
     console.log(
-      `MiSTer: ${config.mister.host}:${config.mister.port}`
+      `Token do agente: ${agentSettings.token}`
     )
 
     console.log(
-      `Local games: ${selectedGamesBasePath || 'não selecionado'}`
+      'Guarde este token no navegador. Não publique nem compartilhe.'
     )
 
     console.log(
-      `Remote base: ${config.mister.remoteBasePath}`
+      `MiSTer: ${
+        runtimeConfig().mister?.host ||
+        'não configurado'
+      }`
+    )
+
+    console.log(
+      `Local games: ${
+        selectedGamesBasePath ||
+        'não selecionado'
+      }`
     )
   }
 )
