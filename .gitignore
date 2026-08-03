@@ -1,0 +1,75 @@
+# Dependencies
+node_modules/
+
+# Production build
+dist/
+build/
+coverage/
+.vite/
+
+# Runtime logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+cache/
+downloads/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+server/config.json
+server/settings.json
+server/peas_local.json
+
+# Keep safe templates
+!server/config.example.json
+!server/peas_local.example.json
+
+# Downloaded artwork and ROM-related output
+media/
+artwork/
+screenshots/
+*.part
+
+# Archives and generated packages
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+
+# Editor files
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+
+# Operating system
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# SSH keys and credentials
+*.pem
+*.ppk
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+known_hosts
+
+# Misc
+*.bak
+*.tmp
+
+server/data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
