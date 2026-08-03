@@ -1186,3 +1186,26 @@ button.small:hover:not(:disabled) {
     transform: translateY(0) scale(1);
   }
 }
+
+
+/* =========================================================
+   MODO ONLINE
+========================================================= */
+
+.directory-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.online-settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 760px) {
+  .online-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}

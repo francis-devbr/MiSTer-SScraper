@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.0.0
+
+- Detecta automaticamente modo local ou online.
+- Mantém SSH/SFTP somente em localhost.
+- Adiciona seleção de pasta pelo navegador no modo online.
+- Adiciona geração de ZIP no navegador.
+- Armazena credenciais online no localStorage.
+- Exibe avisos, sucessos e erros importantes em modal.
+- Mantém o log apenas para diagnóstico técnico.
+- Oculta completamente opções do MiSTer no modo online.
+
+
 ## 5.1.0
 
 - Exibe sucesso e erros dos testes em modal.

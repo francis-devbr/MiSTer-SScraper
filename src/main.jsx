@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
+import OnlineApp from './online/OnlineApp.jsx'
 
 const AGENT_STORAGE_KEY =
   'mister-sscraper-agent-connection'
@@ -141,7 +142,20 @@ function CollapsibleCard({
   )
 }
 
+function detectExecutionMode() {
+  const hostname = window.location.hostname
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1'
+  ) ? 'local' : 'online'
+}
+
 function App() {
+  if (detectExecutionMode() === 'online') {
+    return <OnlineApp />
+  }
+
   const initialConnection = loadAgentConnection()
 
   const [agentConnection, setAgentConnection] = useState({
