@@ -205,6 +205,8 @@ function App() {
   const [selectedSystem, setSelectedSystem] = useState('')
   const [source, setSource] = useState('local')
   const [roms, setRoms] = useState([])
+  const [loadingRoms, setLoadingRoms] = useState(false)
+  const [loadingRomsMessage, setLoadingRomsMessage] = useState('')
   const [romPage, setRomPage] = useState(1)
   const [romPageSize, setRomPageSize] = useState(25)
   const [hoveredRom, setHoveredRom] = useState(null)
@@ -699,9 +701,17 @@ function App() {
   }
 
   async function loadRoms(systemId, selectedSource) {
+    setLoadingRoms(true)
+    setLoadingRomsMessage(
+      selectedSource === 'network'
+        ? 'Lendo diretórios e ROMs do MiSTer...'
+        : 'Lendo diretórios e ROMs do computador...'
+    )
+
     try {
       setRoms([])
       setSelectedRom(null)
+      setHoveredRom(null)
 
       const data = await api(
         `/api/roms?system=${encodeURIComponent(systemId)}` +
@@ -744,6 +754,9 @@ function App() {
         details:
           'Confira o diretório, a conexão e as extensões configuradas para a plataforma.'
       })
+    } finally {
+      setLoadingRoms(false)
+      setLoadingRomsMessage('')
     }
   }
 
@@ -1606,8 +1619,19 @@ function App() {
         <CollapsibleCard
           id="roms"
           title="ROMs"
-          badge={roms.length}
+          badge={loadingRoms ? '...' : roms.length}
+          className="roms-card"
         >
+          {loadingRoms && (
+            <div className="rom-loading-overlay" role="status">
+              <div className="neon-spinner" aria-hidden="true" />
+              <strong>Escaneando ROMs</strong>
+              <span>
+                {loadingRomsMessage ||
+                  'Aguarde enquanto os arquivos são analisados...'}
+              </span>
+            </div>
+          )}
           <div className="rom-toolbar">
             <div className="rom-page-info">
               Página {romPage} de {romPageCount}
@@ -1621,6 +1645,7 @@ function App() {
                   setRomPageSize(Number(event.target.value))
                   setRomPage(1)
                 }}
+                disabled={loadingRoms}
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
@@ -1733,7 +1758,7 @@ function App() {
                   Math.max(1, page - 1)
                 )
               }
-              disabled={romPage <= 1}
+              disabled={loadingRoms || romPage <= 1}
             >
               Anterior
             </button>
@@ -1752,7 +1777,7 @@ function App() {
                   )
                 )
               }
-              disabled={romPage >= romPageCount}
+              disabled={loadingRoms || romPage >= romPageCount}
             >
               Próxima
             </button>

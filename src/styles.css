@@ -1377,3 +1377,173 @@ button.small:hover:not(:disabled) {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+/* =========================================================
+   LOADING DA VARREDURA DE ROMS
+========================================================= */
+
+.roms-card {
+  position: relative;
+  min-height: 180px;
+}
+
+.rom-loading-overlay {
+  position: absolute;
+  inset: 58px 14px 14px;
+  z-index: 180;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 11px;
+  min-height: 130px;
+  padding: 24px;
+  border: 1px solid rgba(0, 245, 255, 0.38);
+  border-radius: 11px;
+  color: var(--text);
+  text-align: center;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(8, 9, 29, 0.96),
+      rgba(3, 5, 18, 0.98)
+    );
+  box-shadow:
+    inset 0 0 35px rgba(0, 245, 255, 0.045),
+    0 0 30px rgba(0, 245, 255, 0.10);
+  backdrop-filter: blur(5px);
+}
+
+.rom-loading-overlay strong {
+  color: var(--cyan);
+  font-family: "Orbitron", Arial, sans-serif;
+  font-size: 0.83rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.rom-loading-overlay span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.neon-spinner {
+  width: 46px;
+  height: 46px;
+  border: 4px solid rgba(0, 245, 255, 0.13);
+  border-top-color: var(--cyan);
+  border-right-color: var(--pink);
+  border-radius: 50%;
+  box-shadow:
+    0 0 14px rgba(0, 245, 255, 0.25),
+    inset 0 0 9px rgba(255, 43, 214, 0.10);
+  animation: neon-spin 750ms linear infinite;
+}
+
+@keyframes neon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+/* =========================================================
+   CARD DE ROMS AMPLIADO
+========================================================= */
+
+.roms-card {
+  grid-column: span 12;
+  min-height: 620px;
+}
+
+.roms-card .card-content {
+  min-height: 520px;
+}
+
+.roms-card .rom-list {
+  min-height: 430px;
+  max-height: 620px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.roms-card .rom {
+  min-height: 64px;
+  padding: 14px 16px;
+}
+
+.roms-card .rom-name {
+  font-size: 0.92rem;
+}
+
+.roms-card .rom-directory {
+  font-size: 0.76rem;
+}
+
+.roms-card .rom-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 10px 0 12px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(9, 10, 31, 0.98),
+      rgba(9, 10, 31, 0.88)
+    );
+  backdrop-filter: blur(8px);
+}
+
+.roms-card .rom-pagination {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding: 12px 0 8px;
+  background:
+    linear-gradient(
+      0deg,
+      rgba(9, 10, 31, 0.98),
+      rgba(9, 10, 31, 0.88)
+    );
+  backdrop-filter: blur(8px);
+}
+
+.roms-card .rom-hover-preview {
+  grid-template-columns: repeat(2, minmax(190px, 280px));
+}
+
+.roms-card .preview-panel img,
+.roms-card .preview-missing {
+  height: 220px;
+}
+
+@media (max-width: 900px) {
+  .roms-card {
+    min-height: 520px;
+  }
+
+  .roms-card .card-content {
+    min-height: 430px;
+  }
+
+  .roms-card .rom-list {
+    min-height: 340px;
+    max-height: 500px;
+  }
+}
+
+@media (max-width: 680px) {
+  .roms-card {
+    min-height: 460px;
+  }
+
+  .roms-card .rom-list {
+    min-height: 300px;
+    max-height: 430px;
+  }
+
+  .roms-card .rom {
+    min-height: 78px;
+  }
+}

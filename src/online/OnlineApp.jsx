@@ -92,6 +92,7 @@ export default function OnlineApp() {
   const [systems, setSystems] = useState([])
   const [selectedSystem, setSelectedSystem] = useState('')
   const [files, setFiles] = useState([])
+  const [loadingDirectory, setLoadingDirectory] = useState(false)
   const [romPage, setRomPage] = useState(1)
   const [romPageSize, setRomPageSize] = useState(25)
   const [running, setRunning] = useState(false)
@@ -162,10 +163,16 @@ export default function OnlineApp() {
     return null
   }
 
-  function selectDirectory(event) {
+  async function selectDirectory(event) {
     const selected = Array.from(event.target.files || [])
 
     if (!selected.length) return
+
+    setLoadingDirectory(true)
+
+    await new Promise(resolve =>
+      requestAnimationFrame(() => resolve())
+    )
 
     const mapped = []
     const detected = new Map()
@@ -219,6 +226,8 @@ export default function OnlineApp() {
     setSystems(systemList)
     setSelectedSystem(systemList[0]?.id || '')
     setRomPage(1)
+
+    setLoadingDirectory(false)
 
     showModal(
       'success',
@@ -509,8 +518,13 @@ export default function OnlineApp() {
             multiple
             onChange={selectDirectory}
           />
-          <button onClick={() => directoryInput.current?.click()}>
-            Escolher pasta games
+          <button
+            onClick={() => directoryInput.current?.click()}
+            disabled={loadingDirectory}
+          >
+            {loadingDirectory
+              ? 'Escaneando pasta...'
+              : 'Escolher pasta games'}
           </button>
           <div className="paths">
             <div><b>Plataformas encontradas:</b> {systems.length}</div>
@@ -545,8 +559,18 @@ export default function OnlineApp() {
           </button>
         </section>
 
-        <section className="card">
+        <section className="card roms-card">
           <h2>ROMs</h2>
+
+          {loadingDirectory && (
+            <div className="rom-loading-overlay" role="status">
+              <div className="neon-spinner" aria-hidden="true" />
+              <strong>Escaneando diretório</strong>
+              <span>
+                Identificando plataformas, subpastas e ROMs...
+              </span>
+            </div>
+          )}
 
           <div className="rom-toolbar">
             <div className="rom-page-info">

@@ -1,5 +1,23 @@
 # Changelog
 
+## 6.2.2
+
+- Aumenta o card da lista de ROMs para ocupar toda a largura.
+- Aumenta a altura útil da lista e do scroll.
+- Mantém barra de paginação e controles visíveis.
+- Aumenta o tamanho das linhas e do preview de artwork.
+- Adiciona ajustes responsivos para telas menores.
+
+
+## 6.2.1
+
+- Adiciona indicador de loading durante a varredura de ROMs.
+- Mostra mensagem diferente para leitura local e MiSTer via rede.
+- Adiciona overlay neon no card de ROMs.
+- Bloqueia paginação durante a leitura.
+- Mostra loading ao analisar diretórios grandes no modo online.
+
+
 ## 6.2.0
 
 - Exibe modal ao concluir ou falhar a varredura de ROMs.
