@@ -83,3 +83,11 @@ scraper cria uma pasta `media` em cada diretório que contém ROMs.
 
 Em navegadores sem File System Access API, o seletor funciona em somente
 leitura e o resultado deve ser baixado como ZIP.
+
+
+## Plataformas personalizadas no modo web
+
+O editor web salva as alterações no `localStorage`. Quando o cartão foi aberto
+com permissão de gravação, as mesmas alterações são gravadas em
+`games/peas_local.json`. Ao selecionar o cartão novamente, esse arquivo é
+carregado e combinado com o catálogo padrão.

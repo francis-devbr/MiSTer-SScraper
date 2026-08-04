@@ -3,6 +3,8 @@ import JSZip from 'jszip'
 import CollapsibleCard from '../shared/CollapsibleCard.jsx'
 
 const SETTINGS_KEY = 'mister-sscraper-online-settings'
+const PLATFORM_OVERRIDES_KEY =
+  'mister-sscraper-web-platform-overrides'
 
 function loadSettings() {
   try {
@@ -19,6 +21,83 @@ function saveSettings(settings) {
     SETTINGS_KEY,
     JSON.stringify(settings)
   )
+}
+
+function loadPlatformOverrides() {
+  try {
+    return JSON.parse(
+      localStorage.getItem(
+        PLATFORM_OVERRIDES_KEY
+      ) || '{}'
+    )
+  } catch {
+    return {}
+  }
+}
+
+function savePlatformOverridesLocal(
+  overrides
+) {
+  localStorage.setItem(
+    PLATFORM_OVERRIDES_KEY,
+    JSON.stringify(overrides)
+  )
+}
+
+function mergePlatforms(
+  basePlatforms,
+  overrides
+) {
+  const result = {
+    ...basePlatforms
+  }
+
+  for (
+    const [id, override] of
+    Object.entries(overrides || {})
+  ) {
+    const current =
+      result[id] || {
+        id,
+        name:
+          override.displayName ||
+          override.name ||
+          id,
+        aliases: [],
+        folders: [],
+        formats: [],
+        systemeid: null
+      }
+
+    result[id] = {
+      ...current,
+      ...override,
+      id,
+      name:
+        override.displayName ||
+        override.name ||
+        current.name ||
+        id,
+      aliases:
+        override.aliases ??
+        current.aliases ??
+        [],
+      folders:
+        override.folders ??
+        current.folders ??
+        [],
+      formats:
+        override.formats ??
+        current.formats ??
+        [],
+      systemeid:
+        override.systemeid ??
+        current.systemeid ??
+        null
+    }
+  }
+
+  return result
 }
 
 function normalize(value) {
@@ -187,8 +266,25 @@ export default function OnlineApp() {
     delayMs: saved.delayMs || 1500
   })
 
+  const [basePlatforms, setBasePlatforms] =
+    useState({})
+  const [platformOverrides, setPlatformOverrides] =
+    useState(() => loadPlatformOverrides())
   const [platforms, setPlatforms] = useState({})
   const [systems, setSystems] = useState([])
+  const [unknownFolders, setUnknownFolders] =
+    useState([])
+  const [showPlatformEditor, setShowPlatformEditor] =
+    useState(false)
+  const [platformEditor, setPlatformEditor] =
+    useState({
+      id: '',
+      displayName: '',
+      folders: '',
+      aliases: '',
+      formats: '',
+      systemeid: ''
+    })
   const [selectedSystem, setSelectedSystem] =
     useState('')
   const [files, setFiles] = useState([])
@@ -201,6 +297,12 @@ export default function OnlineApp() {
     useState(null)
   const [hoveredRom, setHoveredRom] =
     useState(null)
+  const [hoverPreview, setHoverPreview] =
+    useState({
+      relativePath: '',
+      boxUrl: '',
+      backgroundUrl: ''
+    })
   const previewUrls = useRef(new Map())
   const [running, setRunning] = useState(false)
 
@@ -268,7 +370,16 @@ export default function OnlineApp() {
 
         return response.json()
       })
-      .then(setPlatforms)
+      .then(catalog => {
+        setBasePlatforms(catalog)
+
+        setPlatforms(
+          mergePlatforms(
+            catalog,
+            loadPlatformOverrides()
+          )
+        )
+      })
       .catch(error => {
         showError(
           'Catálogo indisponível',
@@ -440,16 +551,22 @@ export default function OnlineApp() {
     )
   }
 
-  function identifyPlatform(folderName) {
+  function identifyPlatform(
+    folderName,
+    catalog = platforms
+  ) {
     const target = normalize(folderName)
 
     for (
       const platform of
-      Object.values(platforms)
+      Object.values(catalog)
     ) {
       const candidates = [
         platform.id,
-        ...(platform.aliases || [])
+        platform.name,
+        platform.displayName,
+        ...(platform.aliases || []),
+        ...(platform.folders || [])
       ]
 
       if (
@@ -558,7 +675,8 @@ export default function OnlineApp() {
   }
 
   async function scanGamesHandle(
-    gamesHandle
+    gamesHandle,
+    catalog = platforms
   ) {
     const mapped = []
     const detected = new Map()
@@ -573,7 +691,10 @@ export default function OnlineApp() {
       }
 
       const platform =
-        identifyPlatform(folderName)
+        identifyPlatform(
+          folderName,
+          catalog
+        )
 
       if (!platform) {
         unknown.add(folderName)
@@ -748,6 +869,40 @@ export default function OnlineApp() {
     })
   }
 
+
+  async function openHoverPreview(item) {
+    setHoveredRom(item)
+
+    const [boxUrl, backgroundUrl] =
+      await Promise.all([
+        item.boxExists
+          ? artworkPreviewUrl(item, 'box')
+          : Promise.resolve(''),
+        item.backgroundExists
+          ? artworkPreviewUrl(
+              item,
+              'background'
+            )
+          : Promise.resolve('')
+      ])
+
+    setHoverPreview({
+      relativePath:
+        item.relativePath,
+      boxUrl,
+      backgroundUrl
+    })
+  }
+
+  function closeHoverPreview() {
+    setHoveredRom(null)
+    setHoverPreview({
+      relativePath: '',
+      boxUrl: '',
+      backgroundUrl: ''
+    })
+  }
+
   async function applyScanResult(
     result,
     accessDetails
@@ -761,6 +916,12 @@ export default function OnlineApp() {
     setSelectedRom(null)
     setHoveredRom(null)
     setStorageAccess(accessDetails)
+    setUnknownFolders(
+      [...result.unknown]
+        .sort((a, b) =>
+          a.localeCompare(b)
+        )
+    )
 
     showModal(
       'success',
@@ -786,6 +947,280 @@ export default function OnlineApp() {
               'Use o botão Baixar ZIP.'
             )
         )
+    )
+  }
+
+  async function readOverridesFromCard(
+    gamesHandle
+  ) {
+    try {
+      const fileHandle =
+        await gamesHandle.getFileHandle(
+          'peas_local.json'
+        )
+
+      const file = await fileHandle.getFile()
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+
+      return (
+        parsed &&
+        typeof parsed === 'object'
+          ? parsed
+          : {}
+      )
+    } catch {
+      return {}
+    }
+  }
+
+  async function writeOverridesToCard(
+    overrides
+  ) {
+    if (
+      !gamesDirectoryHandle.current ||
+      !storageAccess.writeEnabled
+    ) {
+      return false
+    }
+
+    const fileHandle =
+      await gamesDirectoryHandle.current
+        .getFileHandle(
+          'peas_local.json',
+          { create: true }
+        )
+
+    const writable =
+      await fileHandle.createWritable()
+
+    await writable.write(
+      JSON.stringify(
+        overrides,
+        null,
+        2
+      ) + '\\n'
+    )
+
+    await writable.close()
+    return true
+  }
+
+  function splitEditorList(value) {
+    return String(value || '')
+      .split(/[\\n,]/)
+      .map(item => item.trim())
+      .filter(Boolean)
+  }
+
+  function platformToEditor(platform) {
+    return {
+      id: platform?.id || '',
+      displayName:
+        platform?.displayName ||
+        platform?.name ||
+        '',
+      folders:
+        (platform?.folders || [])
+          .join('\\n'),
+      aliases:
+        (platform?.aliases || [])
+          .join('\\n'),
+      formats:
+        (platform?.formats || [])
+          .join('\\n'),
+      systemeid:
+        platform?.systemeid ?? ''
+    }
+  }
+
+  function editSelectedPlatform() {
+    const current =
+      platforms[selectedSystem]
+
+    if (!current) {
+      showError(
+        'Nenhuma plataforma selecionada',
+        'Selecione uma plataforma primeiro.'
+      )
+      return
+    }
+
+    setPlatformEditor(
+      platformToEditor(current)
+    )
+    setShowPlatformEditor(true)
+  }
+
+  function addUnknownPlatform(folder) {
+    const suggestedId =
+      normalize(folder) ||
+      `platform-${Date.now()}`
+
+    setPlatformEditor({
+      id: suggestedId,
+      displayName: folder,
+      folders: folder,
+      aliases: folder,
+      formats:
+        '*.zip\\n*.7z\\n*.bin\\n*.rom',
+      systemeid: ''
+    })
+
+    setShowPlatformEditor(true)
+  }
+
+  async function savePlatformEditor() {
+    const id =
+      normalize(platformEditor.id)
+
+    if (!id) {
+      showError(
+        'ID obrigatório',
+        'Informe um ID para a plataforma.'
+      )
+      return
+    }
+
+    const override = {
+      id,
+      displayName:
+        platformEditor.displayName ||
+        id,
+      name:
+        platformEditor.displayName ||
+        id,
+      folders:
+        splitEditorList(
+          platformEditor.folders
+        ),
+      aliases:
+        splitEditorList(
+          platformEditor.aliases
+        ),
+      formats:
+        splitEditorList(
+          platformEditor.formats
+        ),
+      systemeid:
+        platformEditor.systemeid === ''
+          ? null
+          : Number(
+              platformEditor.systemeid
+            )
+    }
+
+    const nextOverrides = {
+      ...platformOverrides,
+      [id]: override
+    }
+
+    setPlatformOverrides(nextOverrides)
+    savePlatformOverridesLocal(
+      nextOverrides
+    )
+
+    const nextCatalog =
+      mergePlatforms(
+        basePlatforms,
+        nextOverrides
+      )
+
+    setPlatforms(nextCatalog)
+    setShowPlatformEditor(false)
+
+    let cardSaved = false
+
+    if (storageAccess.writeEnabled) {
+      try {
+        cardSaved =
+          await writeOverridesToCard(
+            nextOverrides
+          )
+      } catch (error) {
+        showError(
+          'Salvo no navegador, mas não no cartão',
+          error.message
+        )
+      }
+    }
+
+    showModal(
+      'success',
+      'Plataforma salva',
+      (
+        `${override.displayName} foi salva ` +
+        'no armazenamento do navegador.'
+      ),
+      cardSaved
+        ? (
+          'Também foi gravada em ' +
+          'games/peas_local.json no cartão.'
+        )
+        : (
+          'Para salvar no cartão, conceda ' +
+          'permissão de gravação.'
+        )
+    )
+
+    if (gamesDirectoryHandle.current) {
+      setLoadingDirectory(true)
+
+      try {
+        const result =
+          await scanGamesHandle(
+            gamesDirectoryHandle.current,
+            nextCatalog
+          )
+
+        await applyScanResult(
+          result,
+          storageAccess
+        )
+      } finally {
+        setLoadingDirectory(false)
+      }
+    }
+  }
+
+  async function removePlatformOverride() {
+    const id =
+      normalize(platformEditor.id)
+
+    if (!id) {
+      return
+    }
+
+    const nextOverrides = {
+      ...platformOverrides
+    }
+
+    delete nextOverrides[id]
+
+    setPlatformOverrides(nextOverrides)
+    savePlatformOverridesLocal(
+      nextOverrides
+    )
+
+    const nextCatalog =
+      mergePlatforms(
+        basePlatforms,
+        nextOverrides
+      )
+
+    setPlatforms(nextCatalog)
+    setShowPlatformEditor(false)
+
+    if (storageAccess.writeEnabled) {
+      await writeOverridesToCard(
+        nextOverrides
+      )
+    }
+
+    showModal(
+      'success',
+      'Sobrescrita removida',
+      'A plataforma voltou ao catálogo padrão.'
     )
   }
 
@@ -831,9 +1266,37 @@ export default function OnlineApp() {
           selected
         )
 
+      const cardOverrides =
+        await readOverridesFromCard(
+          gamesHandle
+        )
+
+      const mergedOverrides = {
+        ...loadPlatformOverrides(),
+        ...cardOverrides
+      }
+
+      setPlatformOverrides(
+        mergedOverrides
+      )
+      savePlatformOverridesLocal(
+        mergedOverrides
+      )
+
+      const effectiveCatalog =
+        mergePlatforms(
+          basePlatforms,
+          mergedOverrides
+        )
+
+      setPlatforms(
+        effectiveCatalog
+      )
+
       const result =
         await scanGamesHandle(
-          gamesHandle
+          gamesHandle,
+          effectiveCatalog
         )
 
       await applyScanResult(
@@ -1994,6 +2457,185 @@ export default function OnlineApp() {
         </CollapsibleCard>
 
         <CollapsibleCard
+          id="web-platform-editor-tools"
+          title="Gerenciar plataformas"
+          badge={unknownFolders.length}
+          defaultCollapsed={
+            unknownFolders.length === 0
+          }
+          className="web-platform-tools"
+        >
+          <div className="platform-tools-actions">
+            <button
+              className="small"
+              onClick={editSelectedPlatform}
+              disabled={!selectedSystem}
+            >
+              Editar plataforma selecionada
+            </button>
+
+            <span className="settings-note">
+              Alterações são salvas no navegador
+              e, com permissão, em
+              games/peas_local.json.
+            </span>
+          </div>
+
+          {unknownFolders.length > 0 && (
+            <>
+              <h3 className="platform-subtitle">
+                Pastas não reconhecidas
+              </h3>
+
+              <div className="suggestion-list">
+                {unknownFolders.map(folder => (
+                  <div
+                    className="suggestion-item"
+                    key={folder}
+                  >
+                    <div>
+                      <strong>{folder}</strong>
+                      <small>
+                        Adicione manualmente ao catálogo
+                      </small>
+                    </div>
+
+                    <button
+                      className="small"
+                      onClick={() =>
+                        addUnknownPlatform(folder)
+                      }
+                    >
+                      Adicionar plataforma
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </CollapsibleCard>
+
+        {showPlatformEditor && (
+          <CollapsibleCard
+            id="web-platform-editor"
+            title="Editor de plataforma"
+            className="platform-editor web-platform-editor"
+          >
+            <div className="platform-editor-grid">
+              <label className="field">
+                ID
+                <input
+                  value={platformEditor.id}
+                  onChange={event =>
+                    setPlatformEditor({
+                      ...platformEditor,
+                      id: event.target.value
+                    })
+                  }
+                />
+              </label>
+
+              <label className="field">
+                Nome exibido
+                <input
+                  value={platformEditor.displayName}
+                  onChange={event =>
+                    setPlatformEditor({
+                      ...platformEditor,
+                      displayName:
+                        event.target.value
+                    })
+                  }
+                />
+              </label>
+
+              <label className="field">
+                Pastas reconhecidas
+                <textarea
+                  value={platformEditor.folders}
+                  onChange={event =>
+                    setPlatformEditor({
+                      ...platformEditor,
+                      folders:
+                        event.target.value
+                    })
+                  }
+                  placeholder="MegaDrive&#10;Genesis"
+                />
+              </label>
+
+              <label className="field">
+                Aliases
+                <textarea
+                  value={platformEditor.aliases}
+                  onChange={event =>
+                    setPlatformEditor({
+                      ...platformEditor,
+                      aliases:
+                        event.target.value
+                    })
+                  }
+                />
+              </label>
+
+              <label className="field">
+                Formatos
+                <textarea
+                  value={platformEditor.formats}
+                  onChange={event =>
+                    setPlatformEditor({
+                      ...platformEditor,
+                      formats:
+                        event.target.value
+                    })
+                  }
+                  placeholder="*.zip&#10;*.bin"
+                />
+              </label>
+
+              <label className="field">
+                ScreenScraper ID
+                <input
+                  type="number"
+                  value={platformEditor.systemeid}
+                  onChange={event =>
+                    setPlatformEditor({
+                      ...platformEditor,
+                      systemeid:
+                        event.target.value
+                    })
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="editor-actions">
+              <button
+                onClick={savePlatformEditor}
+              >
+                Salvar plataforma
+              </button>
+
+              <button
+                className="small"
+                onClick={removePlatformOverride}
+              >
+                Restaurar padrão
+              </button>
+
+              <button
+                className="small"
+                onClick={() =>
+                  setShowPlatformEditor(false)
+                }
+              >
+                Cancelar
+              </button>
+            </div>
+          </CollapsibleCard>
+        )}
+
+        <CollapsibleCard
           id="web-roms"
           title="ROMs"
           badge={
@@ -2204,10 +2846,10 @@ export default function OnlineApp() {
                   openArtworkPreview(item)
                 }
                 onMouseEnter={() =>
-                  setHoveredRom(item)
+                  openHoverPreview(item)
                 }
-                onMouseLeave={() =>
-                  setHoveredRom(null)
+                onMouseLeave={
+                  closeHoverPreview
                 }
               >
                 <div className="rom-main-info">
@@ -2252,32 +2894,40 @@ export default function OnlineApp() {
                   <div className="rom-hover-preview">
                     <div className="preview-panel">
                       <strong>Capa</strong>
-                      <div
-                        className={
-                          item.boxExists
-                            ? 'preview-loading'
-                            : 'preview-missing'
-                        }
-                      >
-                        {item.boxExists
-                          ? 'Clique para visualizar'
-                          : 'Sem capa'}
-                      </div>
+                      {item.boxExists &&
+                      hoverPreview.relativePath ===
+                        item.relativePath &&
+                      hoverPreview.boxUrl ? (
+                        <img
+                          src={hoverPreview.boxUrl}
+                          alt={`Capa de ${item.name}`}
+                        />
+                      ) : (
+                        <div className="preview-missing">
+                          {item.boxExists
+                            ? 'Carregando capa...'
+                            : 'Sem capa'}
+                        </div>
+                      )}
                     </div>
 
                     <div className="preview-panel">
                       <strong>Fundo</strong>
-                      <div
-                        className={
-                          item.backgroundExists
-                            ? 'preview-loading'
-                            : 'preview-missing'
-                        }
-                      >
-                        {item.backgroundExists
-                          ? 'Clique para visualizar'
-                          : 'Sem fundo'}
-                      </div>
+                      {item.backgroundExists &&
+                      hoverPreview.relativePath ===
+                        item.relativePath &&
+                      hoverPreview.backgroundUrl ? (
+                        <img
+                          src={hoverPreview.backgroundUrl}
+                          alt={`Fundo de ${item.name}`}
+                        />
+                      ) : (
+                        <div className="preview-missing">
+                          {item.backgroundExists
+                            ? 'Carregando fundo...'
+                            : 'Sem fundo'}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2374,6 +3024,7 @@ export default function OnlineApp() {
         <CollapsibleCard
           id="web-log"
           title="Log técnico"
+          className="web-log-card"
           defaultCollapsed
         >
           <pre className="log">

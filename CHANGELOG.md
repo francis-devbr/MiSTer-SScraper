@@ -1,5 +1,20 @@
 # Changelog
 
+## 6.9.0
+
+- Corrige o preview flutuante para exibir capa e fundo reais do cartão.
+- Corrige cards Preview e Log para ocuparem toda a largura.
+- Evita títulos espremidos e quebra incorreta do layout.
+- Adiciona editor de plataformas ao modo web.
+- Lista pastas do cartão que não foram reconhecidas.
+- Permite adicionar plataformas manualmente.
+- Permite editar aliases, pastas, formatos e ScreenScraper ID.
+- Salva personalizações automaticamente no localStorage.
+- Salva também em games/peas_local.json quando há permissão de gravação.
+- Carrega e combina peas_local.json ao selecionar o cartão.
+- Reescaneia o cartão após salvar uma plataforma.
+
+
 ## 6.8.0
 
 - Compartilha cards minimizáveis entre os modos local e web.
