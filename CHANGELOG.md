@@ -1,5 +1,20 @@
 # Changelog
 
+## 6.8.0
+
+- Compartilha cards minimizáveis entre os modos local e web.
+- Reorganiza a interface web com o mesmo padrão visual do localhost.
+- Move ações de gravação e ZIP para o card ROMs.
+- Mantém o card ROMs em largura total e com maior altura.
+- Adiciona progresso rico dentro do card ROMs web.
+- Lê pastas media existentes diretamente do cartão SD.
+- Exibe indicadores verdes/vermelhos reais para capa e fundo.
+- Atualiza indicadores após gravação direta.
+- Adiciona preview de capa e fundo por clique.
+- Mostra o diretório relativo de cada ROM.
+- Torna o log web minimizável e recolhido por padrão.
+
+
 ## 6.7.0
 
 - Adiciona seleção da raiz do cartão SD ou da pasta games.

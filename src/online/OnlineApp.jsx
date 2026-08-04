@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import JSZip from 'jszip'
+import CollapsibleCard from '../shared/CollapsibleCard.jsx'
 
 const SETTINGS_KEY = 'mister-sscraper-online-settings'
 
@@ -196,6 +197,11 @@ export default function OnlineApp() {
   const [romPage, setRomPage] = useState(1)
   const [romPageSize, setRomPageSize] =
     useState(25)
+  const [selectedRom, setSelectedRom] =
+    useState(null)
+  const [hoveredRom, setHoveredRom] =
+    useState(null)
+  const previewUrls = useRef(new Map())
   const [running, setRunning] = useState(false)
 
   const onlineAbortController = useRef(null)
@@ -207,7 +213,10 @@ export default function OnlineApp() {
   const [logs, setLogs] = useState([])
   const [progress, setProgress] = useState({
     current: 0,
-    total: 0
+    total: 0,
+    rom: '',
+    relativeDirectory: '.',
+    outputMode: ''
   })
 
   const [modal, setModal] = useState({
@@ -234,6 +243,19 @@ export default function OnlineApp() {
     typeof window !== 'undefined' &&
     typeof window.showDirectoryPicker ===
       'function'
+
+  useEffect(() => {
+    return () => {
+      for (
+        const url of
+        previewUrls.current.values()
+      ) {
+        URL.revokeObjectURL(url)
+      }
+
+      previewUrls.current.clear()
+    }
+  }, [])
 
   useEffect(() => {
     fetch('/platforms.json')
@@ -510,6 +532,12 @@ export default function OnlineApp() {
           ? relativeParts.join('/')
           : '.'
 
+      const artwork =
+        await readExistingArtwork(
+          directoryHandle,
+          stripExtension(name)
+        )
+
       result.push({
         file,
         fileHandle: entry,
@@ -523,7 +551,8 @@ export default function OnlineApp() {
         ].join('/'),
         systemId: platform.id,
         systemFolder,
-        relativeDirectory
+        relativeDirectory,
+        ...artwork
       })
     }
   }
@@ -576,6 +605,149 @@ export default function OnlineApp() {
     }
   }
 
+  async function fileExists(
+    directoryHandle,
+    fileName
+  ) {
+    if (!directoryHandle) {
+      return false
+    }
+
+    try {
+      await directoryHandle
+        .getFileHandle(fileName)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async function readExistingArtwork(
+    directoryHandle,
+    base
+  ) {
+    if (!directoryHandle) {
+      return {
+        boxExists: false,
+        backgroundExists: false
+      }
+    }
+
+    try {
+      const mediaHandle =
+        await directoryHandle
+          .getDirectoryHandle('media')
+
+      const [
+        boxExists,
+        backgroundExists
+      ] = await Promise.all([
+        fileExists(
+          mediaHandle,
+          `${base}.png`
+        ),
+        fileExists(
+          mediaHandle,
+          `${base}-BG.png`
+        )
+      ])
+
+      return {
+        boxExists,
+        backgroundExists
+      }
+    } catch {
+      return {
+        boxExists: false,
+        backgroundExists: false
+      }
+    }
+  }
+
+  async function artworkPreviewUrl(
+    item,
+    type
+  ) {
+    if (!item.directoryHandle) {
+      return ''
+    }
+
+    const key =
+      `${item.relativePath}:${type}`
+
+    const cached =
+      previewUrls.current.get(key)
+
+    if (cached) {
+      return cached
+    }
+
+    try {
+      const mediaHandle =
+        await item.directoryHandle
+          .getDirectoryHandle('media')
+
+      const base =
+        stripExtension(item.name)
+
+      const fileName =
+        type === 'box'
+          ? `${base}.png`
+          : `${base}-BG.png`
+
+      const handle =
+        await mediaHandle
+          .getFileHandle(fileName)
+
+      const file = await handle.getFile()
+      const url = URL.createObjectURL(file)
+
+      previewUrls.current.set(key, url)
+      return url
+    } catch {
+      return ''
+    }
+  }
+
+  function clearArtworkPreview(item) {
+    for (const type of [
+      'box',
+      'background'
+    ]) {
+      const key =
+        `${item.relativePath}:${type}`
+
+      const url =
+        previewUrls.current.get(key)
+
+      if (url) {
+        URL.revokeObjectURL(url)
+        previewUrls.current.delete(key)
+      }
+    }
+  }
+
+  async function openArtworkPreview(item) {
+    const [boxUrl, backgroundUrl] =
+      await Promise.all([
+        item.boxExists
+          ? artworkPreviewUrl(item, 'box')
+          : Promise.resolve(''),
+        item.backgroundExists
+          ? artworkPreviewUrl(
+              item,
+              'background'
+            )
+          : Promise.resolve('')
+      ])
+
+    setSelectedRom({
+      ...item,
+      boxUrl,
+      backgroundUrl
+    })
+  }
+
   async function applyScanResult(
     result,
     accessDetails
@@ -586,6 +758,8 @@ export default function OnlineApp() {
       result.systemList[0]?.id || ''
     )
     setRomPage(1)
+    setSelectedRom(null)
+    setHoveredRom(null)
     setStorageAccess(accessDetails)
 
     showModal(
@@ -823,7 +997,9 @@ export default function OnlineApp() {
           relativeDirectory:
             relativeParts.length
               ? relativeParts.join('/')
-              : '.'
+              : '.',
+          boxExists: false,
+          backgroundExists: false
         })
       }
 
@@ -1258,7 +1434,10 @@ export default function OnlineApp() {
     setProgress({
       current: 0,
       total:
-        currentFiles.length
+        currentFiles.length,
+      rom: '',
+      relativeDirectory: '.',
+      outputMode
     })
 
     const zip =
@@ -1299,7 +1478,11 @@ export default function OnlineApp() {
         setProgress({
           current: index + 1,
           total:
-            currentFiles.length
+            currentFiles.length,
+          rom: item.name,
+          relativeDirectory:
+            item.relativeDirectory,
+          outputMode
         })
 
         addLog(
@@ -1381,6 +1564,25 @@ export default function OnlineApp() {
                 background
               )
             }
+
+            clearArtworkPreview(item)
+
+            setFiles(current =>
+              current.map(currentItem =>
+                currentItem.relativePath ===
+                item.relativePath
+                  ? {
+                      ...currentItem,
+                      boxExists:
+                        currentItem.boxExists ||
+                        Boolean(box),
+                      backgroundExists:
+                        currentItem.backgroundExists ||
+                        Boolean(background)
+                    }
+                  : currentItem
+              )
+            )
           } else {
             const directoryPrefix =
               item.relativeDirectory === '.'
@@ -1538,14 +1740,24 @@ export default function OnlineApp() {
         ? 'read-access'
         : 'no-access'
 
+  const progressPercent =
+    progress.total
+      ? Math.round(
+          (
+            progress.current /
+            progress.total
+          ) * 100
+        )
+      : 0
+
   return (
     <div className="app">
       <header>
         <div>
           <h1>MiSTer ScreenScraper</h1>
           <p>
-            Modo web — leitura do cartão SD,
-            gravação direta ou download ZIP
+            Modo web — cartão SD, gravação direta
+            e download ZIP
           </p>
         </div>
 
@@ -1556,9 +1768,7 @@ export default function OnlineApp() {
 
           <span
             className={`status ${
-              running
-                ? 'running'
-                : ''
+              running ? 'running' : ''
             }`}
           >
             {running
@@ -1569,21 +1779,24 @@ export default function OnlineApp() {
       </header>
 
       <main>
-        <section className="card web-mode-info">
-          <div>
-            <h2>Modo web</h2>
-            <p>
-              No Chrome ou Edge, escolha o cartão SD e
-              autorize gravação para criar as pastas media
-              diretamente. Em navegadores sem suporte,
-              o projeto usa seleção somente leitura e gera ZIP.
-            </p>
-          </div>
-        </section>
+        <CollapsibleCard
+          id="web-info"
+          title="Modo web"
+          className="web-mode-info"
+          defaultCollapsed
+        >
+          <p>
+            No Chrome ou Edge, escolha o cartão SD
+            e autorize a gravação direta. Em outros
+            navegadores, use o download ZIP.
+          </p>
+        </CollapsibleCard>
 
-        <section className="card settings-card">
-          <h2>Credenciais ScreenScraper</h2>
-
+        <CollapsibleCard
+          id="web-credentials"
+          title="Credenciais ScreenScraper"
+          className="settings-card"
+        >
           <div className="settings-grid online-settings-grid">
             <label className="field">
               Developer ID
@@ -1648,14 +1861,17 @@ export default function OnlineApp() {
           </button>
 
           <p className="settings-note">
-            As credenciais ficam apenas no localStorage
-            deste navegador.
+            As credenciais ficam apenas no
+            localStorage deste navegador.
           </p>
-        </section>
+        </CollapsibleCard>
 
-        <section className="card sd-card-selector">
-          <h2>Cartão SD / pasta games</h2>
-
+        <CollapsibleCard
+          id="web-storage"
+          title="Cartão SD / pasta games"
+          badge={files.length}
+          className="sd-card-selector"
+        >
           <input
             ref={directoryInput}
             className="directory-input"
@@ -1668,7 +1884,10 @@ export default function OnlineApp() {
 
           <button
             onClick={chooseSdCard}
-            disabled={loadingDirectory || running}
+            disabled={
+              loadingDirectory ||
+              running
+            }
           >
             {loadingDirectory
               ? 'Lendo cartão SD...'
@@ -1688,12 +1907,15 @@ export default function OnlineApp() {
               <small>
                 {storageAccess.selectedName
                   ? (
-                    `Selecionado: ${storageAccess.selectedName}` +
-                    (
+                    `Selecionado: ${
+                      storageAccess.selectedName
+                    }${
                       storageAccess.gamesName
-                        ? ` / ${storageAccess.gamesName}`
+                        ? ` / ${
+                            storageAccess.gamesName
+                          }`
                         : ''
-                    )
+                    }`
                   )
                   : (
                     supportsDirectWrite
@@ -1701,7 +1923,7 @@ export default function OnlineApp() {
                         'Chrome/Edge: leitura e gravação disponíveis'
                       )
                       : (
-                        'Navegador sem gravação direta; será usado ZIP'
+                        'Somente leitura; saída por ZIP'
                       )
                   )}
               </small>
@@ -1710,20 +1932,22 @@ export default function OnlineApp() {
 
           <div className="paths">
             <div>
-              <b>Plataformas encontradas:</b>{' '}
+              <b>Plataformas:</b>{' '}
               {systems.length}
             </div>
 
             <div>
-              <b>ROMs reconhecidas:</b>{' '}
+              <b>ROMs:</b>{' '}
               {files.length}
             </div>
           </div>
-        </section>
+        </CollapsibleCard>
 
-        <section className="card">
-          <h2>Plataforma</h2>
-
+        <CollapsibleCard
+          id="web-platform"
+          title="Plataforma"
+          badge={currentFiles.length}
+        >
           <select
             value={selectedSystem}
             onChange={event => {
@@ -1731,6 +1955,8 @@ export default function OnlineApp() {
                 event.target.value
               )
               setRomPage(1)
+              setSelectedRom(null)
+              setHoveredRom(null)
             }}
             disabled={running}
           >
@@ -1765,130 +1991,18 @@ export default function OnlineApp() {
               }
             </div>
           </div>
+        </CollapsibleCard>
 
-          <div className="web-output-actions">
-            {running ? (
-              <button
-                className="stop-scrape-button"
-                onClick={stopScrape}
-              >
-                ■ Parar Scraper
-              </button>
-            ) : (
-              <>
-                <button
-                  className="direct-save-button"
-                  onClick={() =>
-                    startScrape('direct')
-                  }
-                  disabled={
-                    !currentFiles.length ||
-                    !storageAccess.writeEnabled
-                  }
-                >
-                  Salvar diretamente no cartão
-                </button>
-
-                <button
-                  className="zip-download-button"
-                  onClick={() =>
-                    startScrape('zip')
-                  }
-                  disabled={
-                    !currentFiles.length
-                  }
-                >
-                  Baixar ZIP
-                </button>
-              </>
-            )}
-          </div>
-
-          {!storageAccess.writeEnabled && (
-            <p className="settings-note">
-              A gravação direta está indisponível.
-              O botão Baixar ZIP continua funcionando.
-            </p>
-          )}
-
-          {running && (
-            <div className="scrape-progress-panel">
-              <div className="scrape-progress-header">
-                <strong>Processando ROMs</strong>
-                <span>
-                  {progress.current} / {progress.total}
-                </span>
-              </div>
-
-              <div className="scrape-progress-track">
-                <div
-                  className="scrape-progress-fill"
-                  style={{
-                    width: `${
-                      progress.total
-                        ? Math.round(
-                          (
-                            progress.current /
-                            progress.total
-                          ) * 100
-                        )
-                        : 0
-                    }%`
-                  }}
-                />
-              </div>
-
-              <div className="scrape-progress-metrics">
-                <div>
-                  <small>Progresso</small>
-                  <strong>
-                    {progress.total
-                      ? Math.round(
-                        (
-                          progress.current /
-                          progress.total
-                        ) * 100
-                      )
-                      : 0}%
-                  </strong>
-                </div>
-
-                <div>
-                  <small>Faltam</small>
-                  <strong>
-                    {Math.max(
-                      0,
-                      progress.total -
-                      progress.current
-                    )}
-                  </strong>
-                </div>
-
-                <div>
-                  <small>Decorrido</small>
-                  <strong>
-                    {formatDuration(
-                      elapsedSeconds()
-                    )}
-                  </strong>
-                </div>
-
-                <div>
-                  <small>Estimativa</small>
-                  <strong>
-                    {formatDuration(
-                      estimatedSeconds()
-                    )}
-                  </strong>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="card roms-card">
-          <h2>ROMs</h2>
-
+        <CollapsibleCard
+          id="web-roms"
+          title="ROMs"
+          badge={
+            loadingDirectory
+              ? '...'
+              : currentFiles.length
+          }
+          className="roms-card"
+        >
           {loadingDirectory && (
             <div
               className="rom-loading-overlay"
@@ -1905,8 +2019,142 @@ export default function OnlineApp() {
 
               <span>
                 Identificando plataformas,
-                subpastas e ROMs...
+                subpastas, ROMs e mídias...
               </span>
+            </div>
+          )}
+
+          <div className="rom-options-panel web-rom-options">
+            <div className="web-output-mode">
+              <span>Saída do artwork</span>
+              <small>
+                {storageAccess.writeEnabled
+                  ? 'Gravação direta ou ZIP'
+                  : 'Somente ZIP disponível'}
+              </small>
+            </div>
+
+            <div className="web-output-actions">
+              {running ? (
+                <button
+                  className="stop-scrape-button"
+                  onClick={stopScrape}
+                >
+                  ■ Parar Scraper
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="direct-save-button"
+                    onClick={() =>
+                      startScrape('direct')
+                    }
+                    disabled={
+                      !currentFiles.length ||
+                      !storageAccess.writeEnabled
+                    }
+                  >
+                    Salvar diretamente no cartão
+                  </button>
+
+                  <button
+                    className="zip-download-button"
+                    onClick={() =>
+                      startScrape('zip')
+                    }
+                    disabled={!currentFiles.length}
+                  >
+                    Baixar ZIP
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {running && (
+            <div className="scrape-progress-panel scrape-progress-rich">
+              <div className="scrape-cover-placeholder">
+                <span>ARTWORK</span>
+                <small>
+                  {progress.outputMode === 'direct'
+                    ? 'Salvando no cartão'
+                    : 'Adicionando ao ZIP'}
+                </small>
+              </div>
+
+              <div className="scrape-progress-main">
+                <div className="scrape-progress-header">
+                  <strong>
+                    Processando ROMs
+                  </strong>
+
+                  <span>
+                    {progress.current} / {progress.total}
+                  </span>
+                </div>
+
+                <div className="scrape-progress-track">
+                  <div
+                    className="scrape-progress-fill"
+                    style={{
+                      width:
+                        `${progressPercent}%`
+                    }}
+                  />
+                </div>
+
+                <div className="scrape-progress-metrics">
+                  <div>
+                    <small>Progresso</small>
+                    <strong>
+                      {progressPercent}%
+                    </strong>
+                  </div>
+
+                  <div>
+                    <small>Faltam</small>
+                    <strong>
+                      {Math.max(
+                        0,
+                        progress.total -
+                        progress.current
+                      )}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <small>Decorrido</small>
+                    <strong>
+                      {formatDuration(
+                        elapsedSeconds()
+                      )}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <small>Estimativa</small>
+                    <strong>
+                      {formatDuration(
+                        estimatedSeconds()
+                      )}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="scrape-current-rom">
+                  <span>Atual</span>
+                  <strong>
+                    {progress.rom ||
+                      'Preparando fila...'}
+                  </strong>
+
+                  {progress.relativeDirectory !== '.' && (
+                    <small>
+                      {progress.relativeDirectory}
+                    </small>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1928,6 +2176,10 @@ export default function OnlineApp() {
                   )
                   setRomPage(1)
                 }}
+                disabled={
+                  loadingDirectory ||
+                  running
+                }
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
@@ -1939,9 +2191,24 @@ export default function OnlineApp() {
 
           <div className="rom-list">
             {paginatedFiles.map(item => (
-              <div
-                className="rom"
+              <button
+                type="button"
+                className={`rom rom-button rom-with-preview ${
+                  selectedRom?.relativePath ===
+                  item.relativePath
+                    ? 'selected'
+                    : ''
+                }`}
                 key={item.relativePath}
+                onClick={() =>
+                  openArtworkPreview(item)
+                }
+                onMouseEnter={() =>
+                  setHoveredRom(item)
+                }
+                onMouseLeave={() =>
+                  setHoveredRom(null)
+                }
               >
                 <div className="rom-main-info">
                   <span className="rom-name">
@@ -1949,27 +2216,72 @@ export default function OnlineApp() {
                   </span>
 
                   <small className="rom-directory">
-                    {
-                      item.relativeDirectory === '.'
-                        ? item.systemFolder
-                        : (
-                          `${item.systemFolder}/` +
-                          item.relativeDirectory
-                        )
-                    }
+                    {item.relativeDirectory === '.'
+                      ? item.systemFolder
+                      : (
+                        `${item.systemFolder}/` +
+                        item.relativeDirectory
+                      )}
                   </small>
                 </div>
 
                 <div className="rom-art-status">
-                  <span className="art-indicator missing-art">
-                    Capa pendente
+                  <span
+                    className={`art-indicator ${
+                      item.boxExists
+                        ? 'has-art'
+                        : 'missing-art'
+                    }`}
+                  >
+                    Capa
                   </span>
 
-                  <span className="art-indicator missing-art">
-                    Fundo pendente
+                  <span
+                    className={`art-indicator ${
+                      item.backgroundExists
+                        ? 'has-art'
+                        : 'missing-art'
+                    }`}
+                  >
+                    Fundo
                   </span>
                 </div>
-              </div>
+
+                {hoveredRom?.relativePath ===
+                  item.relativePath && (
+                  <div className="rom-hover-preview">
+                    <div className="preview-panel">
+                      <strong>Capa</strong>
+                      <div
+                        className={
+                          item.boxExists
+                            ? 'preview-loading'
+                            : 'preview-missing'
+                        }
+                      >
+                        {item.boxExists
+                          ? 'Clique para visualizar'
+                          : 'Sem capa'}
+                      </div>
+                    </div>
+
+                    <div className="preview-panel">
+                      <strong>Fundo</strong>
+                      <div
+                        className={
+                          item.backgroundExists
+                            ? 'preview-loading'
+                            : 'preview-missing'
+                        }
+                      >
+                        {item.backgroundExists
+                          ? 'Clique para visualizar'
+                          : 'Sem fundo'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </button>
             ))}
 
             {!paginatedFiles.length && (
@@ -1987,7 +2299,10 @@ export default function OnlineApp() {
                   Math.max(1, page - 1)
                 )
               }
-              disabled={romPage <= 1}
+              disabled={
+                running ||
+                romPage <= 1
+              }
             >
               Anterior
             </button>
@@ -2007,21 +2322,64 @@ export default function OnlineApp() {
                 )
               }
               disabled={
+                running ||
                 romPage >= romPageCount
               }
             >
               Próxima
             </button>
           </div>
-        </section>
+        </CollapsibleCard>
 
-        <section className="card">
-          <h2>Log técnico</h2>
+        {selectedRom && (
+          <CollapsibleCard
+            id="web-preview"
+            title={`Preview: ${selectedRom.name}`}
+            className="preview-card"
+          >
+            <div className="artwork-preview-grid">
+              <div className="artwork-preview-item">
+                <h3>Capa</h3>
 
+                {selectedRom.boxUrl ? (
+                  <img
+                    src={selectedRom.boxUrl}
+                    alt={`Capa de ${selectedRom.name}`}
+                  />
+                ) : (
+                  <div className="preview-missing">
+                    Sem capa
+                  </div>
+                )}
+              </div>
+
+              <div className="artwork-preview-item">
+                <h3>Fundo</h3>
+
+                {selectedRom.backgroundUrl ? (
+                  <img
+                    src={selectedRom.backgroundUrl}
+                    alt={`Fundo de ${selectedRom.name}`}
+                  />
+                ) : (
+                  <div className="preview-missing">
+                    Sem fundo
+                  </div>
+                )}
+              </div>
+            </div>
+          </CollapsibleCard>
+        )}
+
+        <CollapsibleCard
+          id="web-log"
+          title="Log técnico"
+          defaultCollapsed
+        >
           <pre className="log">
             {logs.join('\n') || 'Aguardando...'}
           </pre>
-        </section>
+        </CollapsibleCard>
       </main>
 
       <FeedbackModal
@@ -2035,4 +2393,5 @@ export default function OnlineApp() {
       />
     </div>
   )
+
 }

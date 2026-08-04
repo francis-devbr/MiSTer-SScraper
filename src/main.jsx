@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 import OnlineApp from './online/OnlineApp.jsx'
+import CollapsibleCard from './shared/CollapsibleCard.jsx'
 
 const AGENT_STORAGE_KEY =
   'mister-sscraper-agent-connection'
@@ -66,81 +67,6 @@ const splitList = value =>
     .map(item => item.trim())
     .filter(Boolean)
 
-
-function CollapsibleCard({
-  id,
-  title,
-  children,
-  className = '',
-  badge = null,
-  actions = null,
-  defaultCollapsed = false
-}) {
-  const storageKey = `mister-screenscraper-card-${id}`
-
-  const [collapsed, setCollapsed] = useState(() => {
-    const saved = localStorage.getItem(storageKey)
-
-    if (saved === null) {
-      return defaultCollapsed
-    }
-
-    return saved === 'true'
-  })
-
-  function toggleCollapsed() {
-    setCollapsed(current => {
-      const next = !current
-      localStorage.setItem(storageKey, String(next))
-      return next
-    })
-  }
-
-  return (
-    <section
-      className={`card collapsible-card ${
-        collapsed ? 'card-collapsed' : ''
-      } ${className}`.trim()}
-    >
-      <div className="card-header">
-        <div className="card-title-area">
-          <h2>{title}</h2>
-          {badge !== null && (
-            <span className="card-badge">{badge}</span>
-          )}
-        </div>
-
-        <div className="card-header-actions">
-          {actions}
-
-          <button
-            type="button"
-            className="collapse-button"
-            onClick={toggleCollapsed}
-            aria-expanded={!collapsed}
-            aria-controls={`card-content-${id}`}
-            title={collapsed ? 'Expandir card' : 'Minimizar card'}
-          >
-            <span aria-hidden="true">
-              {collapsed ? '＋' : '－'}
-            </span>
-            <span className="collapse-label">
-              {collapsed ? 'Expandir' : 'Minimizar'}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <div
-        id={`card-content-${id}`}
-        className="card-content"
-        hidden={collapsed}
-      >
-        {children}
-      </div>
-    </section>
-  )
-}
 
 function detectExecutionMode() {
   const hostname = window.location.hostname
