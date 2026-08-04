@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.10.0
+
+- Adiciona botão Ajuda no cabeçalho do modo web.
+- Adiciona tutorial interativo em modal.
+- Divide o tutorial em dez etapas navegáveis.
+- Explica credenciais, cartão SD, permissões, plataformas, ROMs, gravação e ZIP.
+- Inclui seção de solução de problemas comuns.
+- Permite navegar pelas etapas pela lateral ou pelos botões Anterior e Próxima.
+- Adiciona layout responsivo do tutorial para celulares.
+
+
 ## 6.9.1
 
 - Move o botão Editar plataforma para o cabeçalho do card Plataforma.

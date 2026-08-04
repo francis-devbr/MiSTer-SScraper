@@ -329,6 +329,11 @@ export default function OnlineApp() {
     details: ''
   })
 
+  const [helpOpen, setHelpOpen] =
+    useState(false)
+  const [helpStep, setHelpStep] =
+    useState(0)
+
   const [storageAccess, setStorageAccess] =
     useState({
       mode: 'none',
@@ -2196,6 +2201,187 @@ export default function OnlineApp() {
       ?.abort()
   }
 
+  const webTutorialSteps = [
+    {
+      title: '1. Credenciais ScreenScraper',
+      content: (
+        <>
+          <p>
+            Abra o card <b>Credenciais ScreenScraper</b> e
+            informe Developer ID, Developer Password, usuário
+            e senha.
+          </p>
+          <p>
+            Clique em <b>Testar ScreenScraper</b>. As credenciais
+            ficam somente no localStorage deste navegador.
+          </p>
+        </>
+      )
+    },
+    {
+      title: '2. Escolher cartão SD ou pasta games',
+      content: (
+        <>
+          <p>
+            Clique em <b>Escolher cartão SD ou pasta games</b>.
+            Você pode selecionar a raiz do cartão ou diretamente
+            a pasta <code>games</code>.
+          </p>
+          <p>
+            No Chrome e Edge, autorize leitura e gravação para
+            permitir que o site crie as pastas <code>media</code>
+            diretamente no cartão.
+          </p>
+        </>
+      )
+    },
+    {
+      title: '3. Verificar o nível de acesso',
+      content: (
+        <>
+          <p>
+            O indicador verde <b>Acesso de gravação</b> permite
+            salvar diretamente no cartão.
+          </p>
+          <p>
+            Se aparecer <b>Somente leitura</b>, o site continuará
+            funcionando, mas a saída deverá ser baixada em ZIP.
+          </p>
+        </>
+      )
+    },
+    {
+      title: '4. Selecionar e editar a plataforma',
+      content: (
+        <>
+          <p>
+            No card <b>Plataforma</b>, escolha o sistema que deseja
+            processar.
+          </p>
+          <p>
+            Use <b>Editar plataforma</b> para ajustar nome, aliases,
+            pastas reconhecidas, formatos e ScreenScraper ID.
+          </p>
+          <p>
+            As alterações ficam no navegador e, com permissão de
+            gravação, também em <code>games/peas_local.json</code>.
+          </p>
+        </>
+      )
+    },
+    {
+      title: '5. Pastas não reconhecidas',
+      content: (
+        <>
+          <p>
+            O card <b>Gerenciar plataformas</b> lista pastas do
+            cartão que não correspondem ao catálogo atual.
+          </p>
+          <p>
+            Clique em <b>Adicionar plataforma</b>, revise os campos
+            sugeridos e salve.
+          </p>
+        </>
+      )
+    },
+    {
+      title: '6. Conferir ROMs e mídias',
+      content: (
+        <>
+          <p>
+            O card <b>ROMs</b> mostra nome, diretório e indicadores
+            de capa e fundo.
+          </p>
+          <p>
+            Verde significa que a mídia existe. Vermelho significa
+            que ela ainda está ausente.
+          </p>
+          <p>
+            Passe o mouse ou clique em uma ROM para visualizar a
+            capa e o fundo já existentes no cartão.
+          </p>
+        </>
+      )
+    },
+    {
+      title: '7. Salvar diretamente no cartão',
+      content: (
+        <>
+          <p>
+            Use <b>Salvar diretamente no cartão</b> quando o acesso
+            de gravação estiver ativo.
+          </p>
+          <p>
+            Para cada diretório de ROMs, o site cria uma pasta
+            <code>media</code> e grava:
+          </p>
+          <pre>
+{`Jogo.png
+Jogo-BG.png`}
+          </pre>
+        </>
+      )
+    },
+    {
+      title: '8. Baixar ZIP',
+      content: (
+        <>
+          <p>
+            Use <b>Baixar ZIP</b> quando não quiser alterar o cartão
+            ou quando o navegador estiver em modo somente leitura.
+          </p>
+          <p>
+            O ZIP preserva a mesma hierarquia de plataformas,
+            subpastas e diretórios <code>media</code>.
+          </p>
+        </>
+      )
+    },
+    {
+      title: '9. Progresso e interrupção',
+      content: (
+        <>
+          <p>
+            Durante o scraping são exibidos percentual, ROM atual,
+            quantidade restante, tempo decorrido e estimativa.
+          </p>
+          <p>
+            Clique em <b>Parar Scraper</b> para interromper o
+            processo. As imagens já concluídas permanecem salvas.
+          </p>
+        </>
+      )
+    },
+    {
+      title: '10. Problemas comuns',
+      content: (
+        <>
+          <p>
+            <b>HTTP 405:</b> atualize o site com Ctrl + F5. O botão
+            de pasta não deve chamar uma rota HTTP.
+          </p>
+          <p>
+            <b>Falha de CORS:</b> a API ScreenScraper pode bloquear
+            chamadas diretas. Nesse caso será necessário usar um
+            proxy no Worker.
+          </p>
+          <p>
+            <b>Plataforma ausente:</b> adicione a pasta pelo card
+            Gerenciar plataformas e informe o ScreenScraper ID.
+          </p>
+          <p>
+            <b>Sem gravação:</b> selecione novamente o cartão no
+            Chrome/Edge e conceda leitura e gravação.
+          </p>
+        </>
+      )
+    }
+  ]
+
+  const currentHelpStep =
+    webTutorialSteps[helpStep] ??
+    webTutorialSteps[0]
+
   const accessClass =
     storageAccess.writeEnabled
       ? 'write-access'
@@ -2225,6 +2411,17 @@ export default function OnlineApp() {
         </div>
 
         <div className="header-controls">
+          <button
+            type="button"
+            className="help-button"
+            onClick={() => {
+              setHelpStep(0)
+              setHelpOpen(true)
+            }}
+          >
+            ? Ajuda
+          </button>
+
           <span className="execution-mode-badge web-mode">
             WEB
           </span>
@@ -3040,6 +3237,135 @@ export default function OnlineApp() {
           </pre>
         </CollapsibleCard>
       </main>
+
+      {helpOpen && (
+        <div
+          className="help-modal-backdrop"
+          onMouseDown={event => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              setHelpOpen(false)
+            }
+          }}
+        >
+          <div
+            className="help-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="web-help-title"
+          >
+            <div className="help-modal-header">
+              <div>
+                <span className="help-kicker">
+                  Tutorial do modo web
+                </span>
+
+                <h2 id="web-help-title">
+                  {currentHelpStep.title}
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                className="help-close-button"
+                onClick={() =>
+                  setHelpOpen(false)
+                }
+                aria-label="Fechar ajuda"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="help-modal-body">
+              <aside className="help-step-list">
+                {webTutorialSteps.map(
+                  (step, index) => (
+                    <button
+                      type="button"
+                      key={step.title}
+                      className={
+                        index === helpStep
+                          ? 'active'
+                          : ''
+                      }
+                      onClick={() =>
+                        setHelpStep(index)
+                      }
+                    >
+                      <span>
+                        {index + 1}
+                      </span>
+
+                      <small>
+                        {step.title.replace(
+                          /^\d+\.\s*/,
+                          ''
+                        )}
+                      </small>
+                    </button>
+                  )
+                )}
+              </aside>
+
+              <article className="help-step-content">
+                {currentHelpStep.content}
+              </article>
+            </div>
+
+            <div className="help-modal-footer">
+              <span>
+                Etapa {helpStep + 1} de {
+                  webTutorialSteps.length
+                }
+              </span>
+
+              <div>
+                <button
+                  type="button"
+                  className="small"
+                  disabled={helpStep === 0}
+                  onClick={() =>
+                    setHelpStep(step =>
+                      Math.max(0, step - 1)
+                    )
+                  }
+                >
+                  Anterior
+                </button>
+
+                {helpStep <
+                webTutorialSteps.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setHelpStep(step =>
+                        Math.min(
+                          webTutorialSteps.length - 1,
+                          step + 1
+                        )
+                      )
+                    }
+                  >
+                    Próxima
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setHelpOpen(false)
+                    }
+                  >
+                    Concluir
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <FeedbackModal
         modal={modal}

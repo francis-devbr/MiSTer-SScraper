@@ -2430,3 +2430,262 @@ main > .card.web-platform-tools {
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   AJUDA E TUTORIAL DO MODO WEB
+========================================================= */
+
+.help-button {
+  width: auto;
+  min-width: 94px;
+  min-height: 32px;
+  margin: 0;
+  padding: 7px 13px;
+  border-color: rgba(255, 43, 214, 0.64);
+  color: var(--pink);
+  background: rgba(255, 43, 214, 0.07);
+}
+
+.help-button:hover {
+  color: #fff;
+  box-shadow:
+    0 0 20px rgba(255, 43, 214, 0.34);
+}
+
+.help-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(1, 2, 10, 0.86);
+  backdrop-filter: blur(8px);
+}
+
+.help-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(980px, 100%);
+  max-height: min(820px, calc(100vh - 36px));
+  overflow: hidden;
+  border: 1px solid rgba(0, 245, 255, 0.5);
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(14, 15, 42, 0.995),
+      rgba(5, 7, 22, 0.995)
+    );
+  box-shadow:
+    0 28px 100px rgba(0, 0, 0, 0.68),
+    0 0 40px rgba(0, 245, 255, 0.14);
+}
+
+.help-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 24px;
+  border-bottom: 1px solid rgba(0, 245, 255, 0.16);
+}
+
+.help-kicker {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--pink);
+  font-family: "Orbitron", Arial, sans-serif;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.help-modal-header h2 {
+  margin: 0;
+  color: var(--cyan);
+}
+
+.help-modal-header h2::before {
+  display: none;
+}
+
+.help-close-button {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  margin: 0;
+  padding: 0;
+  border-color: rgba(255, 66, 109, 0.44);
+  color: var(--red);
+  font-size: 1.4rem;
+  line-height: 1;
+  background: rgba(255, 66, 109, 0.06);
+}
+
+.help-modal-body {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.help-step-list {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 18px;
+  overflow-y: auto;
+  border-right: 1px solid rgba(0, 245, 255, 0.14);
+  background: rgba(2, 4, 15, 0.52);
+}
+
+.help-step-list button {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 46px;
+  margin: 0;
+  padding: 8px 10px;
+  border-color: rgba(141, 165, 184, 0.14);
+  color: var(--muted);
+  text-align: left;
+  background: rgba(9, 10, 31, 0.62);
+}
+
+.help-step-list button > span {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-family: "Orbitron", Arial, sans-serif;
+  font-size: 0.65rem;
+}
+
+.help-step-list button small {
+  overflow-wrap: anywhere;
+  font-size: 0.7rem;
+}
+
+.help-step-list button.active {
+  color: var(--cyan);
+  border-color: rgba(0, 245, 255, 0.58);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0, 245, 255, 0.1),
+      rgba(168, 85, 247, 0.08)
+    );
+  box-shadow:
+    0 0 16px rgba(0, 245, 255, 0.12);
+}
+
+.help-step-content {
+  padding: 26px 30px;
+  overflow-y: auto;
+  color: #deedf5;
+  line-height: 1.7;
+}
+
+.help-step-content p {
+  margin: 0 0 16px;
+}
+
+.help-step-content b,
+.help-step-content code {
+  color: var(--cyan);
+}
+
+.help-step-content code {
+  padding: 2px 6px;
+  border: 1px solid rgba(0, 245, 255, 0.18);
+  border-radius: 5px;
+  background: rgba(0, 245, 255, 0.06);
+}
+
+.help-step-content pre {
+  margin: 14px 0;
+  padding: 14px;
+  overflow-x: auto;
+  border: 1px solid rgba(168, 85, 247, 0.24);
+  border-radius: 8px;
+  color: #f3eaff;
+  background: rgba(2, 4, 14, 0.78);
+}
+
+.help-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  border-top: 1px solid rgba(0, 245, 255, 0.16);
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.help-modal-footer > div {
+  display: flex;
+  gap: 10px;
+}
+
+.help-modal-footer button {
+  width: auto;
+  min-width: 120px;
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .help-modal {
+    max-height: calc(100vh - 20px);
+  }
+
+  .help-modal-body {
+    grid-template-columns: 1fr;
+  }
+
+  .help-step-list {
+    grid-template-columns:
+      repeat(5, minmax(52px, 1fr));
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid rgba(0, 245, 255, 0.14);
+  }
+
+  .help-step-list button {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    min-width: 72px;
+    text-align: center;
+  }
+
+  .help-step-list button small {
+    display: none;
+  }
+
+  .help-step-content {
+    padding: 20px;
+  }
+
+  .help-modal-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .help-modal-footer > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .help-modal-footer button {
+    width: 100%;
+    min-width: 0;
+  }
+}
