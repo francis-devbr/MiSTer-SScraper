@@ -62,3 +62,24 @@ MegaDrive/
 ```
 
 Pastas chamadas `media` são ignoradas durante a busca de ROMs.
+
+
+## Separação automática de modos
+
+A aplicação detecta o hostname:
+
+- `localhost`, `127.0.0.1` ou `::1`: modo local com SSH/SFTP.
+- Qualquer domínio público: modo web sem opções de MiSTer via rede.
+
+No modo web são exibidos somente seleção de diretório, ScreenScraper e
+download ZIP.
+
+
+## Gravação direta no cartão SD
+
+No modo web, Chrome e Edge usam `showDirectoryPicker()` para selecionar a raiz
+do cartão SD ou a pasta `games`. Após a permissão de leitura e gravação, o
+scraper cria uma pasta `media` em cada diretório que contém ROMs.
+
+Em navegadores sem File System Access API, o seletor funciona em somente
+leitura e o resultado deve ser baixado como ZIP.

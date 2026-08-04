@@ -144,15 +144,23 @@ function CollapsibleCard({
 
 function detectExecutionMode() {
   const hostname = window.location.hostname
-  return (
+
+  const isLocalhost =
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
     hostname === '::1'
-  ) ? 'local' : 'online'
+
+  return isLocalhost
+    ? 'local'
+    : 'online'
 }
 
+const EXECUTION_MODE = detectExecutionMode()
+const IS_LOCAL_MODE =
+  EXECUTION_MODE === 'local'
+
 function App() {
-  if (detectExecutionMode() === 'online') {
+  if (!IS_LOCAL_MODE) {
     return <OnlineApp />
   }
 
@@ -1242,10 +1250,14 @@ function App() {
       <header>
         <div>
           <h1>MiSTer ScreenScraper</h1>
-          <p>Artwork para Console Mode</p>
+          <p>Modo local — diretório, SSH/SFTP e sincronização direta</p>
         </div>
 
         <div className="header-controls">
+          <span className="execution-mode-badge local-mode">
+            LOCAL
+          </span>
+
           <button
             className="small settings-toggle"
             onClick={() => setShowSettings(!showSettings)}
@@ -1404,6 +1416,7 @@ function App() {
                 </button>
               </div>
 
+              {IS_LOCAL_MODE && (
               <div className="settings-section">
                 <h3>MiSTer</h3>
 
@@ -1501,6 +1514,8 @@ function App() {
                     : 'Testar MiSTer'}
                 </button>
               </div>
+              )}
+
             </div>
 
             <button
@@ -1513,6 +1528,7 @@ function App() {
             </button>
           </CollapsibleCard>
         )}
+        {IS_LOCAL_MODE && (
         <CollapsibleCard
           id="source"
           title="Fonte dos jogos"
@@ -1590,6 +1606,7 @@ function App() {
             </>
           )}
         </CollapsibleCard>
+        )}
 
         <CollapsibleCard
           id="system"

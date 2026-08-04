@@ -1,5 +1,30 @@
 # Changelog
 
+## 6.7.0
+
+- Adiciona seleção da raiz do cartão SD ou da pasta games.
+- Usa File System Access API no Chrome e Edge.
+- Solicita permissão de leitura e gravação pelo navegador.
+- Cria pastas media diretamente ao lado das ROMs.
+- Salva capa e fundo diretamente no cartão SD.
+- Exibe indicador de acesso de gravação, somente leitura ou sem acesso.
+- Mantém seleção webkitdirectory para navegadores sem suporte.
+- Adiciona botão Salvar diretamente no cartão.
+- Mantém botão Baixar ZIP como fallback.
+- Remove qualquer chamada HTTP do botão de seleção de diretório.
+
+
+## 6.6.0
+
+- Separa visualmente e funcionalmente os modos local e web.
+- Oculta completamente MiSTer via rede no domínio publicado.
+- Oculta IP, porta, usuário, senha SSH e teste do MiSTer no modo web.
+- Mantém SSH/SFTP somente em localhost e 127.0.0.1.
+- Adiciona badges LOCAL e WEB no cabeçalho.
+- Adiciona aviso explicativo no modo web.
+- Mantém no modo web apenas seleção da pasta games e geração de ZIP.
+
+
 ## 6.5.0
 
 - Substitui Iniciar/Processando/Parar por um único botão contextual.
