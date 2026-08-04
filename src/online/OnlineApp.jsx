@@ -324,19 +324,111 @@ export default function OnlineApp() {
     return json?.response?.jeu || null
   }
 
-  async function downloadMedia(platform, gameId, media, region, signal) {
-    const attempts = [
-      `${media}(${region})`,
-      `${media}(us)`,
-      `${media}(wor)`,
-      `${media}(eu)`,
-      media
+  function gameMediaEntries(game) {
+    const medias =
+      game?.medias?.media ??
+      game?.medias ??
+      []
+
+    if (Array.isArray(medias)) {
+      return medias
+    }
+
+    if (
+      medias &&
+      typeof medias === 'object'
+    ) {
+      return Object.values(medias)
+        .flat()
+        .filter(Boolean)
+    }
+
+    return []
+  }
+
+  function gameMediaType(entry) {
+    return String(
+      entry?.type ??
+      entry?.["@_type"] ??
+      entry?.mediatype ??
+      ''
+    ).trim()
+  }
+
+  function gameMediaRegion(entry) {
+    return String(
+      entry?.region ??
+      entry?.["@_region"] ??
+      ''
+    ).trim().toLowerCase()
+  }
+
+  function onlineMediaCandidates(
+    game,
+    media,
+    preferredRegion
+  ) {
+    const availableRegions =
+      gameMediaEntries(game)
+        .filter(entry =>
+          gameMediaType(entry)
+            .toLowerCase() ===
+          String(media).toLowerCase()
+        )
+        .map(gameMediaRegion)
+
+    const fallbackRegions = [
+      preferredRegion,
+      'us',
+      'wor',
+      'eu',
+      'br',
+      'jp',
+      'au',
+      'kr',
+      'ss'
+    ].filter(Boolean)
+
+    const orderedAvailable = [
+      ...fallbackRegions.filter(region =>
+        availableRegions.includes(region)
+      ),
+      ...availableRegions.filter(region =>
+        !fallbackRegions.includes(region)
+      )
     ]
 
-    for (const mediaName of [...new Set(attempts)]) {
+    return [
+      ...new Set([
+        ...orderedAvailable.map(region =>
+          `${media}(${region})`
+        ),
+        ...fallbackRegions.map(region =>
+          `${media}(${region})`
+        ),
+        media
+      ])
+    ]
+  }
+
+  async function downloadMedia(
+    platform,
+    game,
+    media,
+    region,
+    signal
+  ) {
+    const attempts =
+      onlineMediaCandidates(
+        game,
+        media,
+        region
+      )
+
+    for (const mediaName of attempts) {
       const params = baseParams()
       params.set('systemeid', platform.systemeid)
-      params.set('jeuid', gameId)
+      params.set('jeuid', game.id)
       params.set('media', mediaName)
       params.set('outputformat', 'png')
 
@@ -345,10 +437,16 @@ export default function OnlineApp() {
         { signal }
       )
 
-      if (!response.ok) continue
+      if (!response.ok) {
+        continue
+      }
 
       const blob = await response.blob()
-      if (blob.size > 8 && blob.type.startsWith('image/')) {
+
+      if (
+        blob.size > 8 &&
+        blob.type.startsWith('image/')
+      ) {
         return blob
       }
     }
@@ -436,11 +534,11 @@ export default function OnlineApp() {
             zip.folder(`${directoryPrefix}/media`)
 
           await sleep(settings.delayMs)
-          const box = await downloadMedia(platform, game.id, 'box-2D', region, controller.signal)
+          const box = await downloadMedia(platform, game, 'box-2D', region, controller.signal)
           if (box) mediaFolder.file(`${base}.png`, box)
 
           await sleep(settings.delayMs)
-          const bg = await downloadMedia(platform, game.id, 'ss', region, controller.signal)
+          const bg = await downloadMedia(platform, game, 'ss', region, controller.signal)
           if (bg) mediaFolder.file(`${base}-BG.png`, bg)
 
           if (box || bg) {

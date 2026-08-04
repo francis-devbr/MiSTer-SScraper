@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.4.1
+
+- Lê as regiões de mídia disponíveis no resultado do jogo.
+- Prioriza a mídia realmente existente antes dos fallbacks genéricos.
+- Tenta automaticamente `wor`, `us`, `eu`, `br`, `jp` e outras regiões.
+- Evita deixar jogos sem capa quando existe artwork em outra região.
+- Registra no log cada mídia tentada e a variante encontrada.
+- Aplica o mesmo fallback ao modo online.
+
+
 ## 6.4.0
 
 - Adiciona barra de progresso durante o scraping.

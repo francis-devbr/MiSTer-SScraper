@@ -770,60 +770,207 @@ async function screenScraperGame(
   return game
 }
 
+function mediaEntriesFromGame(game) {
+  const medias =
+    game?.medias?.media ??
+    game?.medias ??
+    []
+
+  if (Array.isArray(medias)) {
+    return medias
+  }
+
+  if (
+    medias &&
+    typeof medias === 'object'
+  ) {
+    return Object.values(medias)
+      .flat()
+      .filter(Boolean)
+  }
+
+  return []
+}
+
+function mediaTypeOf(entry) {
+  return String(
+    entry?.type ??
+    entry?.["@_type"] ??
+    entry?.mediatype ??
+    ''
+  ).trim()
+}
+
+function mediaRegionOf(entry) {
+  return String(
+    entry?.region ??
+    entry?.["@_region"] ??
+    ''
+  ).trim().toLowerCase()
+}
+
+function unique(values) {
+  return [
+    ...new Set(
+      values.filter(Boolean)
+    )
+  ]
+}
+
+function mediaCandidates(
+  game,
+  mediaName
+) {
+  const requested =
+    String(mediaName || '').trim()
+
+  const regionMatch =
+    requested.match(
+      /^(.*)\(([^)]+)\)$/
+    )
+
+  const baseMedia =
+    regionMatch
+      ? regionMatch[1]
+      : requested
+
+  const explicitRegion =
+    regionMatch
+      ? regionMatch[2].toLowerCase()
+      : ''
+
+  const ss =
+    runtimeConfig().screenscraper
+
+  const configuredRegions = unique([
+    explicitRegion,
+    ss.defaultRegion,
+    ...(ss.regionFallbackOrder || []),
+    'us',
+    'wor',
+    'eu',
+    'br',
+    'jp',
+    'au',
+    'kr',
+    'ss'
+  ].map(value =>
+    String(value || '')
+      .trim()
+      .toLowerCase()
+  ))
+
+  const availableRegions =
+    mediaEntriesFromGame(game)
+      .filter(entry =>
+        mediaTypeOf(entry)
+          .toLowerCase() ===
+        baseMedia.toLowerCase()
+      )
+      .map(mediaRegionOf)
+
+  /*
+   * Prioridade:
+   * 1. Regiões realmente presentes no retorno do jogo,
+   *    ordenadas conforme a preferência configurada.
+   * 2. Demais regiões presentes no retorno.
+   * 3. Regiões de fallback conhecidas.
+   * 4. Tipo sem região, para jogos onde a API decide sozinha.
+   */
+  const orderedAvailable = [
+    ...configuredRegions.filter(region =>
+      availableRegions.includes(region)
+    ),
+    ...availableRegions.filter(region =>
+      !configuredRegions.includes(region)
+    )
+  ]
+
+  return unique([
+    ...orderedAvailable.map(region =>
+      `${baseMedia}(${region})`
+    ),
+    ...configuredRegions.map(region =>
+      `${baseMedia}(${region})`
+    ),
+    requested,
+    baseMedia
+  ])
+}
+
 async function downloadMedia(
   system,
   game,
-  mediaName
+  mediaName,
+  send = null
 ) {
   if (!game?.id) {
     return null
   }
 
-  const url =
-    `https://api.screenscraper.fr/api2/mediaJeu.php?` +
-    baseParams() +
-    `&systemeid=${enc(system.systemeid)}` +
-    `&jeuid=${enc(game.id)}` +
-    `&media=${enc(mediaName)}` +
-    `&outputformat=png`
-
-    console.log(url)
-    
-  const response = await fetch(url)
-
-  if (response.status === 429) {
-    throw new Error(
-      'ScreenScraper HTTP 429: limite atingido.'
+  const candidates =
+    mediaCandidates(
+      game,
+      mediaName
     )
-  }
 
-  if (!response.ok) {
-    throw new Error(
-      `Media HTTP ${response.status}`
+  for (const candidate of candidates) {
+    const url =
+      `https://api.screenscraper.fr/api2/mediaJeu.php?` +
+      baseParams() +
+      `&systemeid=${enc(system.systemeid)}` +
+      `&jeuid=${enc(game.id)}` +
+      `&media=${enc(candidate)}` +
+      `&outputformat=png`
+
+    send?.(
+      `  Tentando mídia: ${candidate}`
     )
+
+    const response = await fetch(url)
+
+    if (response.status === 429) {
+      throw new Error(
+        'ScreenScraper HTTP 429: limite atingido.'
+      )
+    }
+
+    /*
+     * Uma região inexistente pode retornar 400/404.
+     * Não encerramos o jogo: tentamos a próxima candidata.
+     */
+    if (!response.ok) {
+      continue
+    }
+
+    const buffer = Buffer.from(
+      await response.arrayBuffer()
+    )
+
+    if (buffer.length < 8) {
+      continue
+    }
+
+    const png =
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47
+
+    const jpg =
+      buffer[0] === 0xff &&
+      buffer[1] === 0xd8
+
+    if (png || jpg) {
+      send?.(
+        `  Mídia encontrada: ${candidate}`
+      )
+
+      return buffer
+    }
   }
 
-  const buffer = Buffer.from(
-    await response.arrayBuffer()
-  )
-
-  if (buffer.length < 8) {
-    return null
-  }
-
-  const png =
-    buffer[0] === 0x89 &&
-    buffer[1] === 0x50 &&
-    buffer[2] === 0x4e &&
-    buffer[3] === 0x47
-
-  const jpg =
-    buffer[0] === 0xff &&
-    buffer[1] === 0xd8
-
-  return png || jpg
-    ? buffer
-    : null
+  return null
 }
 
 function sleep(ms) {
@@ -1949,7 +2096,8 @@ app.post('/api/scrape', async (req, res) => {
               system,
               game,
               runtimeConfig().screenscraper.boxartMedia ||
-                'box-2D'
+                'box-2D',
+              send
             )
 
           if (data) {
@@ -2023,7 +2171,8 @@ app.post('/api/scrape', async (req, res) => {
               system,
               game,
               runtimeConfig().screenscraper.backgroundMedia ||
-                'ss'
+                'ss',
+              send
             )
 
           if (data) {
