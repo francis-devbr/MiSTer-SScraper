@@ -137,6 +137,17 @@ function App() {
 
   const [systems, setSystems] = useState([])
   const [selectedSystem, setSelectedSystem] = useState('')
+  const [selectedBatchSystems, setSelectedBatchSystems] =
+    useState([])
+  const [showBatchSelector, setShowBatchSelector] =
+    useState(false)
+  const [batchProgress, setBatchProgress] = useState({
+    platformIndex: 0,
+    platformTotal: 0,
+    platformName: '',
+    completedRoms: 0,
+    totalRoms: 0
+  })
   const [source, setSource] = useState('local')
   const [roms, setRoms] = useState([])
   const [loadingRoms, setLoadingRoms] = useState(false)
@@ -198,6 +209,25 @@ function App() {
     system => system.id === selectedSystem
   )
 
+  const batchAvailableSystems = useMemo(
+    () =>
+      systems.filter(system =>
+        source === 'network'
+          ? system.availableRemote
+          : system.availableLocal
+      ),
+    [systems, source]
+  )
+
+  const effectiveBatchSystems =
+    selectedBatchSystems.length
+      ? selectedBatchSystems
+      : (
+        selectedSystem
+          ? [selectedSystem]
+          : []
+      )
+
   const romPageCount = Math.max(
     1,
     Math.ceil(roms.length / romPageSize)
@@ -220,6 +250,21 @@ function App() {
 
     loadRoms(selectedSystem, source)
   }, [selectedSystem, source])
+
+  useEffect(() => {
+    const availableIds =
+      new Set(
+        batchAvailableSystems.map(
+          system => system.id
+        )
+      )
+
+    setSelectedBatchSystems(current =>
+      current.filter(id =>
+        availableIds.has(id)
+      )
+    )
+  }, [batchAvailableSystems])
 
   useEffect(() => {
     if (!current) {
@@ -951,7 +996,15 @@ function App() {
   }
 
   async function startScrape() {
-    if (!selectedSystem) {
+    const queue = effectiveBatchSystems
+
+    if (!queue.length) {
+      showModal({
+        type: 'error',
+        title: 'Nenhuma plataforma selecionada',
+        message:
+          'Selecione uma ou mais plataformas para iniciar o scraping.'
+      })
       return
     }
 
@@ -959,203 +1012,382 @@ function App() {
 
     scrapeAbortController.current = controller
     scrapeStoppedByUser.current = false
-
     scrapeStartedAt.current = Date.now()
+
     setScrapeClock(Date.now())
     setRunning(true)
     setLogs([])
-    setScrapeProgress({
-      current: 0,
-      total: roms.length,
-      remaining: roms.length,
-      percent: 0,
-      rom: '',
-      romPath: '',
-      relativeDirectory: '.',
-      coverAvailable: false,
-      backgroundAvailable: false,
-      artworkVersion: Date.now()
-    })
 
     try {
       const connection = loadAgentConnection()
 
-      const response = await fetch(agentUrl('/api/scrape'), {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization:
-            `Bearer ${connection.token || ''}`
-        },
-        body: JSON.stringify({
-          system: selectedSystem,
-          source,
-          ...options
+      const queueInfo = []
+
+      for (const systemId of queue) {
+        const response = await api(
+          `/api/roms?system=${encodeURIComponent(systemId)}` +
+          `&source=${encodeURIComponent(source)}`
+        )
+
+        const systemInfo =
+          systems.find(item =>
+            item.id === systemId
+          )
+
+        queueInfo.push({
+          id: systemId,
+          name:
+            systemInfo?.name ||
+            systemId,
+          total:
+            response.roms?.length || 0
         })
+      }
+
+      const totalRoms =
+        queueInfo.reduce(
+          (sum, item) =>
+            sum + item.total,
+          0
+        )
+
+      let completedOffset = 0
+
+      setBatchProgress({
+        platformIndex: 0,
+        platformTotal:
+          queueInfo.length,
+        platformName: '',
+        completedRoms: 0,
+        totalRoms
       })
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || `HTTP ${response.status}`)
-      }
+      setScrapeProgress({
+        current: 0,
+        total: totalRoms,
+        remaining: totalRoms,
+        percent: 0,
+        rom: '',
+        romPath: '',
+        relativeDirectory: '.',
+        coverAvailable: false,
+        backgroundAvailable: false,
+        artworkVersion: Date.now()
+      })
 
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { value, done } = await reader.read()
-
-        if (done) {
-          break
+      for (
+        let platformIndex = 0;
+        platformIndex < queueInfo.length;
+        platformIndex++
+      ) {
+        if (
+          controller.signal.aborted ||
+          scrapeStoppedByUser.current
+        ) {
+          throw new DOMException(
+            'Scraping interrompido',
+            'AbortError'
+          )
         }
 
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
+        const queued =
+          queueInfo[platformIndex]
 
-        for (const line of lines) {
-          if (!line.trim()) {
-            continue
+        setSelectedSystem(queued.id)
+
+        setBatchProgress(current => ({
+          ...current,
+          platformIndex:
+            platformIndex + 1,
+          platformTotal:
+            queueInfo.length,
+          platformName:
+            queued.name,
+          completedRoms:
+            completedOffset,
+          totalRoms
+        }))
+
+        addLog('')
+        addLog(
+          `=== PLATAFORMA ${platformIndex + 1}/${queueInfo.length}: ${queued.name} ===`
+        )
+
+        const response = await fetch(
+          agentUrl('/api/scrape'),
+          {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'Content-Type':
+                'application/json',
+              Authorization:
+                `Bearer ${
+                  connection.token || ''
+                }`
+            },
+            body: JSON.stringify({
+              system: queued.id,
+              source,
+              ...options
+            })
           }
+        )
 
-          try {
-            const event = JSON.parse(line)
+        if (!response.ok) {
+          const data =
+            await response
+              .json()
+              .catch(() => ({}))
 
-            if (event.type === 'progress') {
-              setScrapeProgress(current => {
-                const changedRom =
-                  event.romPath &&
-                  event.romPath !== current.romPath
+          throw new Error(
+            data.error ||
+            `HTTP ${response.status}`
+          )
+        }
 
-                return {
+        const reader =
+          response.body.getReader()
+
+        const decoder =
+          new TextDecoder()
+
+        let buffer = ''
+
+        while (true) {
+          const { value, done } =
+            await reader.read()
+
+          if (done) break
+
+          buffer += decoder.decode(
+            value,
+            { stream: true }
+          )
+
+          const lines =
+            buffer.split('\n')
+
+          buffer =
+            lines.pop() || ''
+
+          for (const line of lines) {
+            if (!line.trim()) continue
+
+            try {
+              const event =
+                JSON.parse(line)
+
+              if (
+                event.type === 'progress'
+              ) {
+                const localCurrent =
+                  Number(event.current) || 0
+
+                const aggregateCurrent =
+                  completedOffset +
+                  localCurrent
+
+                setScrapeProgress(current => {
+                  const changedRom =
+                    event.romPath &&
+                    event.romPath !==
+                      current.romPath
+
+                  return {
+                    ...current,
+                    current:
+                      aggregateCurrent,
+                    total:
+                      totalRoms,
+                    remaining:
+                      Math.max(
+                        0,
+                        totalRoms -
+                        aggregateCurrent
+                      ),
+                    percent:
+                      totalRoms > 0
+                        ? Math.round(
+                            (
+                              aggregateCurrent /
+                              totalRoms
+                            ) * 100
+                          )
+                        : 100,
+                    rom:
+                      event.rom ||
+                      current.rom,
+                    romPath:
+                      event.romPath ||
+                      current.romPath,
+                    relativeDirectory:
+                      event.relativeDirectory ||
+                      current.relativeDirectory,
+                    coverAvailable:
+                      changedRom
+                        ? Boolean(
+                            event.boxExists
+                          )
+                        : current.coverAvailable,
+                    backgroundAvailable:
+                      changedRom
+                        ? Boolean(
+                            event.backgroundExists
+                          )
+                        : current.backgroundAvailable,
+                    artworkVersion:
+                      changedRom
+                        ? Date.now()
+                        : current.artworkVersion
+                  }
+                })
+
+                setBatchProgress(current => ({
                   ...current,
-                  current:
-                    Number(event.current) || 0,
-                  total:
-                    Number(event.total) || 0,
-                  remaining:
-                    Number(event.remaining) || 0,
-                  percent:
-                    Number(event.percent) || 0,
-                  rom:
-                    event.rom || current.rom,
-                  romPath:
-                    event.romPath || current.romPath,
-                  relativeDirectory:
-                    event.relativeDirectory ||
-                    current.relativeDirectory,
-                  coverAvailable:
-                    changedRom
-                      ? Boolean(event.boxExists)
-                      : current.coverAvailable,
-                  backgroundAvailable:
-                    changedRom
-                      ? Boolean(event.backgroundExists)
-                      : current.backgroundAvailable,
-                  artworkVersion:
-                    changedRom
-                      ? Date.now()
-                      : current.artworkVersion
-                }
-              })
-              continue
-            }
+                  completedRoms:
+                    aggregateCurrent
+                }))
 
-            if (event.type === 'artwork') {
-              setScrapeProgress(current => {
-                if (
-                  event.romPath !== current.romPath
-                ) {
-                  return current
-                }
+                continue
+              }
 
-                return {
-                  ...current,
-                  coverAvailable:
-                    event.artworkType === 'box'
-                      ? true
-                      : current.coverAvailable,
-                  backgroundAvailable:
-                    event.artworkType === 'background'
-                      ? true
-                      : current.backgroundAvailable,
-                  artworkVersion: Date.now()
-                }
-              })
-              continue
-            }
+              if (
+                event.type === 'artwork'
+              ) {
+                setScrapeProgress(current => {
+                  if (
+                    event.romPath !==
+                    current.romPath
+                  ) {
+                    return current
+                  }
 
-            if (event.type === 'complete') {
-              setScrapeProgress(current => ({
-                ...current,
-                current: event.total || 0,
-                total: event.total || 0,
-                remaining: 0,
-                percent: 100
-              }))
+                  return {
+                    ...current,
+                    coverAvailable:
+                      event.artworkType ===
+                        'box'
+                        ? true
+                        : current.coverAvailable,
+                    backgroundAvailable:
+                      event.artworkType ===
+                        'background'
+                        ? true
+                        : current.backgroundAvailable,
+                    artworkVersion:
+                      Date.now()
+                  }
+                })
+
+                continue
+              }
+
+              if (
+                event.type === 'complete'
+              ) {
+                addLog(
+                  `=== ${queued.name} FINALIZADA ===`
+                )
+                continue
+              }
+
+              if (
+                event.type === 'error'
+              ) {
+                addLog(
+                  event.message ||
+                  'Erro no scraping'
+                )
+                continue
+              }
 
               addLog(
-                event.message || '=== FINALIZADO ==='
+                event.message ||
+                JSON.stringify(event)
               )
-
-              showModal({
-                type: 'success',
-                title: 'Scraping concluído',
-                message:
-                  `${event.total || 0} ROMs foram processadas.`,
-                details:
-                  'A lista será atualizada para refletir as novas capas e fundos.'
-              })
-              continue
+            } catch {
+              addLog(line)
             }
-
-            if (event.type === 'error') {
-              addLog(event.message || 'Erro no scraping')
-              continue
-            }
-
-            addLog(
-              event.message ||
-              JSON.stringify(event)
-            )
-          } catch {
-            addLog(line)
           }
         }
+
+        completedOffset +=
+          queued.total
+
+        setBatchProgress(current => ({
+          ...current,
+          completedRoms:
+            completedOffset
+        }))
       }
+
+      setScrapeProgress(current => ({
+        ...current,
+        current: totalRoms,
+        total: totalRoms,
+        remaining: 0,
+        percent: 100
+      }))
+
+      showModal({
+        type: 'success',
+        title:
+          'Atualização em massa concluída',
+        message:
+          `${queueInfo.length} plataformas e ${totalRoms} ROMs foram processadas.`,
+        details:
+          queueInfo
+            .map(item =>
+              `${item.name}: ${item.total} ROMs`
+            )
+            .join('\n')
+      })
     } catch (error) {
       if (
         error.name === 'AbortError' ||
         scrapeStoppedByUser.current
       ) {
-        addLog('PROCESSO INTERROMPIDO PELO USUÁRIO')
+        addLog(
+          'PROCESSO EM MASSA INTERROMPIDO PELO USUÁRIO'
+        )
 
         showModal({
           type: 'info',
-          title: 'Scraping interrompido',
+          title:
+            'Atualização em massa interrompida',
           message:
-            'O processo foi parado pelo usuário.',
+            'A fila foi parada pelo usuário.',
           details:
-            `${scrapeProgress.current} de ${scrapeProgress.total} ROMs haviam sido processadas.`
+            `${batchProgress.completedRoms} de ${batchProgress.totalRoms} ROMs processadas.`
         })
       } else {
-        addLog(`ERRO: ${error.message}`)
+        addLog(
+          `ERRO: ${error.message}`
+        )
 
         showModal({
           type: 'error',
-          title: 'Erro durante o scraping',
-          message: error.message,
+          title:
+            'Erro na atualização em massa',
+          message:
+            error.message,
           details:
             'Consulte o log técnico para mais informações.'
         })
       }
     } finally {
-      scrapeAbortController.current = null
+      scrapeAbortController.current =
+        null
       setRunning(false)
-      await loadRoms(selectedSystem, source)
       scrapeStartedAt.current = null
+
+      if (selectedSystem) {
+        await loadRoms(
+          selectedSystem,
+          source
+        )
+      }
     }
   }
 
@@ -1582,6 +1814,106 @@ function App() {
             })}
           </select>
 
+          <div className="batch-platform-toolbar">
+            <button
+              type="button"
+              className="small"
+              onClick={() =>
+                setShowBatchSelector(
+                  current => !current
+                )
+              }
+              disabled={running}
+            >
+              {showBatchSelector
+                ? 'Fechar seleção em massa'
+                : 'Selecionar várias plataformas'}
+            </button>
+
+            <span>
+              {effectiveBatchSystems.length}
+              {' '}plataforma(s) na fila
+            </span>
+          </div>
+
+          {showBatchSelector && (
+            <div className="batch-platform-selector">
+              <div className="batch-platform-actions">
+                <button
+                  type="button"
+                  className="small"
+                  onClick={() =>
+                    setSelectedBatchSystems(
+                      batchAvailableSystems.map(
+                        system => system.id
+                      )
+                    )
+                  }
+                >
+                  Selecionar todas
+                </button>
+
+                <button
+                  type="button"
+                  className="small"
+                  onClick={() =>
+                    setSelectedBatchSystems([])
+                  }
+                >
+                  Limpar seleção
+                </button>
+              </div>
+
+              <div className="batch-platform-list">
+                {batchAvailableSystems.map(
+                  system => {
+                    const checked =
+                      selectedBatchSystems
+                        .includes(system.id)
+
+                    return (
+                      <label
+                        key={system.id}
+                        className="batch-platform-item"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={event => {
+                            setSelectedBatchSystems(
+                              current =>
+                                event.target.checked
+                                  ? [
+                                      ...current,
+                                      system.id
+                                    ]
+                                  : current.filter(
+                                      id =>
+                                        id !==
+                                        system.id
+                                    )
+                            )
+                          }}
+                        />
+
+                        <span>
+                          <strong>
+                            {system.name}
+                          </strong>
+                          <small>
+                            {source === 'network'
+                              ? system.detectedRemoteFolder
+                              : system.detectedFolder}
+                          </small>
+                        </span>
+                      </label>
+                    )
+                  }
+                )}
+              </div>
+            </div>
+          )}
+
           {current && (
             <div className="paths">
               <div>
@@ -1870,6 +2202,22 @@ function App() {
                     {scrapeProgress.current} / {scrapeProgress.total}
                   </span>
                 </div>
+
+                {batchProgress.platformTotal > 1 && (
+                  <div className="batch-current-platform">
+                    <span>
+                      Plataforma {
+                        batchProgress.platformIndex
+                      } de {
+                        batchProgress.platformTotal
+                      }
+                    </span>
+
+                    <strong>
+                      {batchProgress.platformName}
+                    </strong>
+                  </div>
+                )}
 
                 <div
                   className="scrape-progress-track"

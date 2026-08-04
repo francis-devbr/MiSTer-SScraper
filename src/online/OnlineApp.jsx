@@ -287,6 +287,17 @@ export default function OnlineApp() {
     })
   const [selectedSystem, setSelectedSystem] =
     useState('')
+  const [selectedBatchSystems, setSelectedBatchSystems] =
+    useState([])
+  const [showBatchSelector, setShowBatchSelector] =
+    useState(false)
+  const [batchProgress, setBatchProgress] = useState({
+    platformIndex: 0,
+    platformTotal: 0,
+    platformName: '',
+    completedRoms: 0,
+    totalRoms: 0
+  })
   const [files, setFiles] = useState([])
   const [loadingDirectory, setLoadingDirectory] =
     useState(false)
@@ -435,6 +446,40 @@ export default function OnlineApp() {
       ),
     [files, selectedSystem]
   )
+
+  const effectiveBatchSystems =
+    selectedBatchSystems.length
+      ? selectedBatchSystems
+      : (
+        selectedSystem
+          ? [selectedSystem]
+          : []
+      )
+
+  const batchSelectedFiles = useMemo(
+    () =>
+      files.filter(file =>
+        effectiveBatchSystems.includes(
+          file.systemId
+        )
+      ),
+    [files, effectiveBatchSystems]
+  )
+
+  useEffect(() => {
+    const availableIds =
+      new Set(
+        systems.map(system =>
+          system.id
+        )
+      )
+
+    setSelectedBatchSystems(current =>
+      current.filter(id =>
+        availableIds.has(id)
+      )
+    )
+  }, [systems])
 
   const romPageCount = Math.max(
     1,
@@ -1880,16 +1925,13 @@ export default function OnlineApp() {
       return
     }
 
-    if (
-      !selectedSystem ||
-      !currentFiles.length
-    ) {
+    const queue =
+      effectiveBatchSystems
+
+    if (!queue.length) {
       showError(
-        'Nenhuma ROM selecionada',
-        (
-          'Escolha o cartão SD ou ' +
-          'a pasta games e selecione uma plataforma.'
-        )
+        'Nenhuma plataforma selecionada',
+        'Selecione uma ou mais plataformas para iniciar a fila.'
       )
       return
     }
@@ -1900,28 +1942,68 @@ export default function OnlineApp() {
     ) {
       showError(
         'Gravação não autorizada',
-        (
-          'O navegador não possui permissão ' +
-          'para gravar no cartão SD.'
-        ),
-        (
-          'Selecione novamente o cartão no Chrome/Edge ' +
-          'e permita leitura e gravação, ou use Baixar ZIP.'
-        )
+        'O navegador não possui permissão para gravar no cartão SD.',
+        'Selecione novamente o cartão no Chrome/Edge e permita leitura e gravação, ou use Baixar ZIP.'
       )
       return
     }
 
-    const platform =
-      platforms[selectedSystem]
+    const invalidPlatform =
+      queue.find(systemId =>
+        !platforms[systemId]
+          ?.systemeid
+      )
 
-    if (!platform?.systemeid) {
+    if (invalidPlatform) {
       showError(
         'ScreenScraper ID ausente',
-        (
-          `A plataforma ${selectedSystem} ` +
-          'não possui ScreenScraper ID configurado.'
-        )
+        `A plataforma ${invalidPlatform} não possui ScreenScraper ID configurado.`
+      )
+      return
+    }
+
+    const queueInfo =
+      queue.map(systemId => {
+        const detected =
+          systems.find(system =>
+            system.id === systemId
+          )
+
+        const platform =
+          platforms[systemId]
+
+        const platformFiles =
+          files.filter(file =>
+            file.systemId === systemId
+          )
+
+        return {
+          id: systemId,
+          name:
+            detected?.folder ||
+            platform?.name ||
+            systemId,
+          folder:
+            detected?.folder ||
+            platform?.id ||
+            systemId,
+          platform,
+          files:
+            platformFiles
+        }
+      })
+
+    const totalRoms =
+      queueInfo.reduce(
+        (sum, item) =>
+          sum + item.files.length,
+        0
+      )
+
+    if (!totalRoms) {
+      showError(
+        'Nenhuma ROM selecionada',
+        'As plataformas escolhidas não possuem ROMs reconhecidas.'
       )
       return
     }
@@ -1940,13 +2022,22 @@ export default function OnlineApp() {
     setOnlineClock(Date.now())
     setRunning(true)
     setLogs([])
+
     setProgress({
       current: 0,
-      total:
-        currentFiles.length,
+      total: totalRoms,
       rom: '',
       relativeDirectory: '.',
       outputMode
+    })
+
+    setBatchProgress({
+      platformIndex: 0,
+      platformTotal:
+        queueInfo.length,
+      platformName: '',
+      completedRoms: 0,
+      totalRoms
     })
 
     const zip =
@@ -1954,23 +2045,20 @@ export default function OnlineApp() {
         ? new JSZip()
         : null
 
-    const platformFolder =
-      systems.find(
-        system =>
-          system.id ===
-          selectedSystem
-      )?.folder || platform.id
-
     let found = 0
     let missing = 0
     let failed = 0
+    let globalIndex = 0
 
     try {
       for (
-        let index = 0;
-        index < currentFiles.length;
-        index++
+        let platformIndex = 0;
+        platformIndex < queueInfo.length;
+        platformIndex++
       ) {
+        const queued =
+          queueInfo[platformIndex]
+
         if (
           controller.signal.aborted ||
           onlineStopRequested.current
@@ -1981,225 +2069,257 @@ export default function OnlineApp() {
           )
         }
 
-        const item =
-          currentFiles[index]
+        setSelectedSystem(queued.id)
 
-        clearCurrentScrapeCover()
+        setBatchProgress(current => ({
+          ...current,
+          platformIndex:
+            platformIndex + 1,
+          platformTotal:
+            queueInfo.length,
+          platformName:
+            queued.name,
+          completedRoms:
+            globalIndex,
+          totalRoms
+        }))
 
-        setProgress({
-          current: index + 1,
-          total:
-            currentFiles.length,
-          rom: item.name,
-          relativeDirectory:
-            item.relativeDirectory,
-          outputMode
-        })
-
+        addLog('')
         addLog(
-          (
-            `[${index + 1}/` +
-            `${currentFiles.length}] ` +
-            `${item.name}`
-          )
+          `=== PLATAFORMA ${platformIndex + 1}/${queueInfo.length}: ${queued.name} ===`
         )
 
-        const boxAlreadyExists =
-          Boolean(item.boxExists)
-
-        const backgroundAlreadyExists =
-          Boolean(item.backgroundExists)
-
-        const needsBox =
-          webOptions.force ||
-          !boxAlreadyExists
-
-        const needsBackground =
-          webOptions.background &&
-          (
-            webOptions.force ||
-            !backgroundAlreadyExists
-          )
-
-        if (
-          !needsBox &&
-          !needsBackground
+        for (
+          let index = 0;
+          index < queued.files.length;
+          index++
         ) {
-          addLog(
-            '  Já possui as mídias solicitadas. Pulando.'
-          )
-          continue
-        }
+          if (
+            controller.signal.aborted ||
+            onlineStopRequested.current
+          ) {
+            throw new DOMException(
+              'Scraping interrompido',
+              'AbortError'
+            )
+          }
 
-        try {
-          const game =
-            await findGame(
-              platform,
-              item,
-              controller.signal
+          const item =
+            queued.files[index]
+
+          globalIndex++
+          clearCurrentScrapeCover()
+
+          setProgress({
+            current: globalIndex,
+            total: totalRoms,
+            rom: item.name,
+            relativeDirectory:
+              item.relativeDirectory,
+            outputMode
+          })
+
+          setBatchProgress(current => ({
+            ...current,
+            completedRoms:
+              globalIndex
+          }))
+
+          addLog(
+            `[${globalIndex}/${totalRoms}] [${queued.name}] ${item.name}`
+          )
+
+          const needsBox =
+            webOptions.force ||
+            !Boolean(item.boxExists)
+
+          const needsBackground =
+            webOptions.background &&
+            (
+              webOptions.force ||
+              !Boolean(
+                item.backgroundExists
+              )
             )
 
-          if (!game?.id) {
-            missing++
-            addLog('  NÃO ENCONTRADO')
+          if (
+            !needsBox &&
+            !needsBackground
+          ) {
+            addLog(
+              '  Já possui as mídias solicitadas. Pulando.'
+            )
             continue
           }
 
-          const base =
-            stripExtension(item.name)
+          try {
+            const game =
+              await findGame(
+                queued.platform,
+                item,
+                controller.signal
+              )
 
-          const region =
-            detectRegion(item.name)
+            if (!game?.id) {
+              missing++
+              addLog('  NÃO ENCONTRADO')
+              continue
+            }
 
-          await sleep(
-            settings.delayMs
-          )
+            const base =
+              stripExtension(item.name)
 
-          const box =
-            needsBox
-              ? await downloadMedia(
-                  platform,
-                  game,
-                  'box-2D',
-                  region,
-                  controller.signal
-                )
-              : null
+            const region =
+              detectRegion(item.name)
 
-          if (box) {
-            showCurrentScrapeCover(box)
-          }
-
-          let background = null
-
-          if (needsBackground) {
             await sleep(
               settings.delayMs
             )
 
-            background =
-              await downloadMedia(
-                platform,
-                game,
-                'ss',
-                region,
-                controller.signal
-              )
-          }
-
-          if (webOptions.dryRun) {
-            addLog(
-              '  SIMULAÇÃO: nenhuma mídia foi gravada.'
-            )
-          } else if (outputMode === 'direct') {
-            if (!item.directoryHandle) {
-              throw new Error(
-                (
-                  'Esta seleção está em modo somente leitura. ' +
-                  'Use Baixar ZIP.'
-                )
-              )
-            }
+            const box =
+              needsBox
+                ? await downloadMedia(
+                    queued.platform,
+                    game,
+                    'box-2D',
+                    region,
+                    controller.signal
+                  )
+                : null
 
             if (box) {
-              await writeBlob(
-                item.directoryHandle,
-                `${base}.png`,
-                box
-              )
+              showCurrentScrapeCover(box)
             }
 
-            if (background) {
-              await writeBlob(
-                item.directoryHandle,
-                `${base}-BG.png`,
-                background
+            let background = null
+
+            if (needsBackground) {
+              await sleep(
+                settings.delayMs
               )
+
+              background =
+                await downloadMedia(
+                  queued.platform,
+                  game,
+                  'ss',
+                  region,
+                  controller.signal
+                )
             }
 
-            clearArtworkPreview(item)
-
-            setFiles(current =>
-              current.map(currentItem =>
-                currentItem.relativePath ===
-                item.relativePath
-                  ? {
-                      ...currentItem,
-                      boxExists:
-                        currentItem.boxExists ||
-                        Boolean(box),
-                      backgroundExists:
-                        currentItem.backgroundExists ||
-                        Boolean(background)
-                    }
-                  : currentItem
+            if (webOptions.dryRun) {
+              addLog(
+                '  SIMULAÇÃO: nenhuma mídia foi gravada.'
               )
-            )
-          } else {
-            const directoryPrefix =
-              item.relativeDirectory === '.'
-                ? platformFolder
-                : (
-                  `${platformFolder}/` +
-                  item.relativeDirectory
+            } else if (
+              outputMode === 'direct'
+            ) {
+              if (!item.directoryHandle) {
+                throw new Error(
+                  'Esta seleção está em modo somente leitura. Use Baixar ZIP.'
+                )
+              }
+
+              if (box) {
+                await writeBlob(
+                  item.directoryHandle,
+                  `${base}.png`,
+                  box
+                )
+              }
+
+              if (background) {
+                await writeBlob(
+                  item.directoryHandle,
+                  `${base}-BG.png`,
+                  background
+                )
+              }
+
+              clearArtworkPreview(item)
+
+              setFiles(current =>
+                current.map(currentItem =>
+                  currentItem.relativePath ===
+                  item.relativePath
+                    ? {
+                        ...currentItem,
+                        boxExists:
+                          currentItem.boxExists ||
+                          Boolean(box),
+                        backgroundExists:
+                          currentItem.backgroundExists ||
+                          Boolean(background)
+                      }
+                    : currentItem
+                )
+              )
+            } else {
+              const directoryPrefix =
+                item.relativeDirectory === '.'
+                  ? queued.folder
+                  : `${queued.folder}/${item.relativeDirectory}`
+
+              const mediaFolder =
+                zip.folder(
+                  `${directoryPrefix}/media`
                 )
 
-            const mediaFolder =
-              zip.folder(
-                `${directoryPrefix}/media`
-              )
+              if (box) {
+                mediaFolder.file(
+                  `${base}.png`,
+                  box
+                )
+              }
 
-            if (box) {
-              mediaFolder.file(
-                `${base}.png`,
-                box
-              )
+              if (background) {
+                mediaFolder.file(
+                  `${base}-BG.png`,
+                  background
+                )
+              }
             }
 
-            if (background) {
-              mediaFolder.file(
-                `${base}-BG.png`,
-                background
+            if (box || background) {
+              found++
+
+              addLog(
+                webOptions.dryRun
+                  ? '  OK: mídia localizada (simulação)'
+                  : (
+                    outputMode === 'direct'
+                      ? '  OK: salvo no cartão'
+                      : '  OK: adicionado ao ZIP'
+                  )
               )
+            } else {
+              missing++
+              addLog('  SEM MÍDIA')
             }
-          }
+          } catch (error) {
+            if (
+              error.name ===
+              'AbortError'
+            ) {
+              throw error
+            }
 
-          if (box || background) {
-            found++
-
+            failed++
             addLog(
-              webOptions.dryRun
-                ? '  OK: mídia localizada (simulação)'
-                : (
-                  outputMode === 'direct'
-                    ? '  OK: salvo no cartão'
-                    : '  OK: adicionado ao ZIP'
-                )
+              `  ERRO: ${error.message}`
             )
-          } else {
-            missing++
-            addLog('  SEM MÍDIA')
           }
-        } catch (error) {
-          if (
-            error.name === 'AbortError'
-          ) {
-            throw error
-          }
-
-          failed++
-          addLog(
-            `  ERRO: ${error.message}`
-          )
         }
+
+        addLog(
+          `=== ${queued.name} FINALIZADA ===`
+        )
       }
 
       if (!found) {
         throw new Error(
-          (
-            'Nenhuma imagem foi salva. ' +
-            'Verifique credenciais, nomes das ROMs e CORS.'
-          )
+          'Nenhuma imagem foi localizada. Verifique credenciais, nomes das ROMs e CORS.'
         )
       }
 
@@ -2220,7 +2340,9 @@ export default function OnlineApp() {
 
         link.href = url
         link.download =
-          `MiSTer-Artwork-${platform.id}.zip`
+          queueInfo.length > 1
+            ? 'MiSTer-Artwork-Multiplataforma.zip'
+            : `MiSTer-Artwork-${queueInfo[0].id}.zip`
 
         link.click()
         URL.revokeObjectURL(url)
@@ -2229,31 +2351,14 @@ export default function OnlineApp() {
       showModal(
         'success',
         webOptions.dryRun
-          ? 'Simulação concluída'
+          ? 'Simulação em massa concluída'
           : (
             outputMode === 'direct'
               ? 'Cartão SD atualizado'
-              : 'ZIP gerado'
+              : 'ZIP multiplataforma gerado'
           ),
-        webOptions.dryRun
-          ? (
-            `${found} jogos possuem mídia disponível. ` +
-            'Nenhum arquivo foi gravado.'
-          )
-          : (
-            outputMode === 'direct'
-              ? (
-                `${found} jogos tiveram artwork ` +
-                'salvo diretamente no cartão.'
-              )
-              : (
-                `${found} jogos foram adicionados ao ZIP.`
-              )
-          ),
-        (
-          `Não encontrados/sem mídia: ${missing}\n` +
-          `Erros: ${failed}`
-        )
+        `${queueInfo.length} plataformas e ${totalRoms} ROMs foram processadas.`,
+        `Com mídia: ${found}\nNão encontrados/sem mídia: ${missing}\nErros: ${failed}`
       )
     } catch (error) {
       if (
@@ -2261,26 +2366,20 @@ export default function OnlineApp() {
         onlineStopRequested.current
       ) {
         addLog(
-          'PROCESSO INTERROMPIDO PELO USUÁRIO'
+          'PROCESSO EM MASSA INTERROMPIDO PELO USUÁRIO'
         )
 
         showModal(
           'info',
-          'Scraping interrompido',
-          'O processo foi parado pelo usuário.',
-          (
-            `${progress.current} de ` +
-            `${progress.total} ROMs haviam sido processadas.`
-          )
+          'Atualização em massa interrompida',
+          'A fila foi parada pelo usuário.',
+          `${batchProgress.completedRoms} de ${batchProgress.totalRoms} ROMs processadas.`
         )
       } else {
         showError(
-          'Falha durante o scraping',
+          'Falha durante a atualização em massa',
           error.message,
-          (
-            'Os detalhes completos permanecem ' +
-            'no card de log.'
-          )
+          'Os detalhes completos permanecem no card de log.'
         )
       }
     } finally {
@@ -2756,6 +2855,121 @@ Jogo-BG.png`}
             ))}
           </select>
 
+          <div className="batch-platform-toolbar">
+            <button
+              type="button"
+              className="small"
+              onClick={() =>
+                setShowBatchSelector(
+                  current => !current
+                )
+              }
+              disabled={running}
+            >
+              {showBatchSelector
+                ? 'Fechar seleção em massa'
+                : 'Selecionar várias plataformas'}
+            </button>
+
+            <span>
+              {effectiveBatchSystems.length}
+              {' '}plataforma(s) na fila —
+              {' '}{batchSelectedFiles.length} ROMs
+            </span>
+          </div>
+
+          {showBatchSelector && (
+            <div className="batch-platform-selector">
+              <div className="batch-platform-actions">
+                <button
+                  type="button"
+                  className="small"
+                  onClick={() =>
+                    setSelectedBatchSystems(
+                      systems
+                        .filter(system =>
+                          files.some(file =>
+                            file.systemId ===
+                            system.id
+                          )
+                        )
+                        .map(system =>
+                          system.id
+                        )
+                    )
+                  }
+                >
+                  Selecionar todas
+                </button>
+
+                <button
+                  type="button"
+                  className="small"
+                  onClick={() =>
+                    setSelectedBatchSystems([])
+                  }
+                >
+                  Limpar seleção
+                </button>
+              </div>
+
+              <div className="batch-platform-list">
+                {systems.map(system => {
+                  const count =
+                    files.filter(file =>
+                      file.systemId ===
+                      system.id
+                    ).length
+
+                  const checked =
+                    selectedBatchSystems
+                      .includes(system.id)
+
+                  return (
+                    <label
+                      key={system.id}
+                      className="batch-platform-item"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={
+                          running ||
+                          count === 0
+                        }
+                        onChange={event => {
+                          setSelectedBatchSystems(
+                            current =>
+                              event.target.checked
+                                ? [
+                                    ...current,
+                                    system.id
+                                  ]
+                                : current.filter(
+                                    id =>
+                                      id !==
+                                      system.id
+                                  )
+                          )
+                        }}
+                      />
+
+                      <span>
+                        <strong>
+                          {system.folder}
+                        </strong>
+
+                        <small>
+                          {count} ROMs
+                        </small>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="paths">
             <div>
               <b>ROMs:</b>{' '}
@@ -3142,6 +3356,22 @@ Jogo-BG.png`}
                     {progress.current} / {progress.total}
                   </span>
                 </div>
+
+                {batchProgress.platformTotal > 1 && (
+                  <div className="batch-current-platform">
+                    <span>
+                      Plataforma {
+                        batchProgress.platformIndex
+                      } de {
+                        batchProgress.platformTotal
+                      }
+                    </span>
+
+                    <strong>
+                      {batchProgress.platformName}
+                    </strong>
+                  </div>
+                )}
 
                 <div
                   className="scrape-progress-track"

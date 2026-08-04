@@ -2767,3 +2767,132 @@ main > .card.web-platform-tools {
     grid-column: auto;
   }
 }
+
+
+/* =========================================================
+   FILA DE ATUALIZAÇÃO EM MASSA
+========================================================= */
+
+.batch-platform-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.batch-platform-toolbar > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.batch-platform-selector {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(3, 5, 16, 0.48);
+}
+
+.batch-platform-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.batch-platform-list {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+.batch-platform-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(141, 165, 184, 0.15);
+  border-radius: 8px;
+  background: rgba(4, 5, 17, 0.55);
+}
+
+.batch-platform-item input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--pink);
+}
+
+.batch-platform-item > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.batch-platform-item strong {
+  overflow-wrap: anywhere;
+  color: #ecf8ff;
+  font-size: 0.75rem;
+}
+
+.batch-platform-item small {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.batch-current-platform {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-left: 3px solid var(--cyan);
+  border-radius: 0 7px 7px 0;
+  background: rgba(0, 245, 255, 0.055);
+}
+
+.batch-current-platform span {
+  color: var(--muted);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.batch-current-platform strong {
+  overflow-wrap: anywhere;
+  color: var(--cyan);
+  font-family: "Orbitron", Arial, sans-serif;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 1100px) {
+  .batch-platform-list {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .batch-platform-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .batch-platform-list {
+    grid-template-columns: 1fr;
+  }
+
+  .batch-current-platform {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -1,5 +1,19 @@
 # Changelog
 
+## 6.11.0
+
+- Adiciona seleção de várias plataformas nos modos localhost e web.
+- Permite selecionar todas as plataformas encontradas.
+- Processa as plataformas sequencialmente em uma única fila.
+- Exibe plataforma atual e posição dentro da fila.
+- Calcula progresso geral considerando todas as ROMs selecionadas.
+- Mantém botão Parar para abortar toda a fila.
+- Mantém logs separados por plataforma.
+- Gera um único ZIP multiplataforma no modo web.
+- Salva diretamente no cartão em várias plataformas na mesma execução.
+- Mantém a plataforma selecionada individualmente para consulta e edição.
+
+
 ## 6.10.1
 
 - Alinha o card ROMs web ao mesmo layout do localhost durante o scraping.
