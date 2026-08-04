@@ -305,6 +305,16 @@ export default function OnlineApp() {
     })
   const previewUrls = useRef(new Map())
   const [running, setRunning] = useState(false)
+  const [webOptions, setWebOptions] = useState({
+    force: false,
+    background: true,
+    dryRun: false
+  })
+  const [selectedOutputMode, setSelectedOutputMode] =
+    useState('direct')
+  const [currentScrapeCoverUrl, setCurrentScrapeCoverUrl] =
+    useState('')
+  const currentScrapeCoverObjectUrl = useRef(null)
 
   const onlineAbortController = useRef(null)
   const onlineStopRequested = useRef(false)
@@ -361,6 +371,13 @@ export default function OnlineApp() {
       }
 
       previewUrls.current.clear()
+
+      if (currentScrapeCoverObjectUrl.current) {
+        URL.revokeObjectURL(
+          currentScrapeCoverObjectUrl.current
+        )
+        currentScrapeCoverObjectUrl.current = null
+      }
     }
   }, [])
 
@@ -1800,6 +1817,29 @@ export default function OnlineApp() {
     return null
   }
 
+  function clearCurrentScrapeCover() {
+    if (currentScrapeCoverObjectUrl.current) {
+      URL.revokeObjectURL(
+        currentScrapeCoverObjectUrl.current
+      )
+      currentScrapeCoverObjectUrl.current = null
+    }
+
+    setCurrentScrapeCoverUrl('')
+  }
+
+  function showCurrentScrapeCover(blob) {
+    clearCurrentScrapeCover()
+
+    if (!blob) {
+      return
+    }
+
+    const url = URL.createObjectURL(blob)
+    currentScrapeCoverObjectUrl.current = url
+    setCurrentScrapeCoverUrl(url)
+  }
+
   async function writeBlob(
     directoryHandle,
     fileName,
@@ -1834,7 +1874,7 @@ export default function OnlineApp() {
   }
 
   async function startScrape(
-    outputMode
+    outputMode = selectedOutputMode
   ) {
     if (!validateCredentials()) {
       return
@@ -1896,6 +1936,7 @@ export default function OnlineApp() {
     onlineStartedAt.current =
       Date.now()
 
+    clearCurrentScrapeCover()
     setOnlineClock(Date.now())
     setRunning(true)
     setLogs([])
@@ -1943,6 +1984,8 @@ export default function OnlineApp() {
         const item =
           currentFiles[index]
 
+        clearCurrentScrapeCover()
+
         setProgress({
           current: index + 1,
           total:
@@ -1960,6 +2003,33 @@ export default function OnlineApp() {
             `${item.name}`
           )
         )
+
+        const boxAlreadyExists =
+          Boolean(item.boxExists)
+
+        const backgroundAlreadyExists =
+          Boolean(item.backgroundExists)
+
+        const needsBox =
+          webOptions.force ||
+          !boxAlreadyExists
+
+        const needsBackground =
+          webOptions.background &&
+          (
+            webOptions.force ||
+            !backgroundAlreadyExists
+          )
+
+        if (
+          !needsBox &&
+          !needsBackground
+        ) {
+          addLog(
+            '  Já possui as mídias solicitadas. Pulando.'
+          )
+          continue
+        }
 
         try {
           const game =
@@ -1986,28 +2056,42 @@ export default function OnlineApp() {
           )
 
           const box =
-            await downloadMedia(
-              platform,
-              game,
-              'box-2D',
-              region,
-              controller.signal
+            needsBox
+              ? await downloadMedia(
+                  platform,
+                  game,
+                  'box-2D',
+                  region,
+                  controller.signal
+                )
+              : null
+
+          if (box) {
+            showCurrentScrapeCover(box)
+          }
+
+          let background = null
+
+          if (needsBackground) {
+            await sleep(
+              settings.delayMs
             )
 
-          await sleep(
-            settings.delayMs
-          )
+            background =
+              await downloadMedia(
+                platform,
+                game,
+                'ss',
+                region,
+                controller.signal
+              )
+          }
 
-          const background =
-            await downloadMedia(
-              platform,
-              game,
-              'ss',
-              region,
-              controller.signal
+          if (webOptions.dryRun) {
+            addLog(
+              '  SIMULAÇÃO: nenhuma mídia foi gravada.'
             )
-
-          if (outputMode === 'direct') {
+          } else if (outputMode === 'direct') {
             if (!item.directoryHandle) {
               throw new Error(
                 (
@@ -2084,9 +2168,13 @@ export default function OnlineApp() {
             found++
 
             addLog(
-              outputMode === 'direct'
-                ? '  OK: salvo no cartão'
-                : '  OK: adicionado ao ZIP'
+              webOptions.dryRun
+                ? '  OK: mídia localizada (simulação)'
+                : (
+                  outputMode === 'direct'
+                    ? '  OK: salvo no cartão'
+                    : '  OK: adicionado ao ZIP'
+                )
             )
           } else {
             missing++
@@ -2115,7 +2203,10 @@ export default function OnlineApp() {
         )
       }
 
-      if (outputMode === 'zip') {
+      if (
+        outputMode === 'zip' &&
+        !webOptions.dryRun
+      ) {
         const content =
           await zip.generateAsync({
             type: 'blob'
@@ -2137,16 +2228,27 @@ export default function OnlineApp() {
 
       showModal(
         'success',
-        outputMode === 'direct'
-          ? 'Cartão SD atualizado'
-          : 'ZIP gerado',
-        outputMode === 'direct'
+        webOptions.dryRun
+          ? 'Simulação concluída'
+          : (
+            outputMode === 'direct'
+              ? 'Cartão SD atualizado'
+              : 'ZIP gerado'
+          ),
+        webOptions.dryRun
           ? (
-            `${found} jogos tiveram artwork ` +
-            'salvo diretamente no cartão.'
+            `${found} jogos possuem mídia disponível. ` +
+            'Nenhum arquivo foi gravado.'
           )
           : (
-            `${found} jogos foram adicionados ao ZIP.`
+            outputMode === 'direct'
+              ? (
+                `${found} jogos tiveram artwork ` +
+                'salvo diretamente no cartão.'
+              )
+              : (
+                `${found} jogos foram adicionados ao ZIP.`
+              )
           ),
         (
           `Não encontrados/sem mídia: ${missing}\n` +
@@ -2186,6 +2288,7 @@ export default function OnlineApp() {
         null
       setRunning(false)
       onlineStartedAt.current = null
+      clearCurrentScrapeCover()
     }
   }
 
@@ -2871,62 +2974,162 @@ Jogo-BG.png`}
             </div>
           )}
 
-          <div className="rom-options-panel web-rom-options">
-            <div className="web-output-mode">
-              <span>Saída do artwork</span>
-              <small>
-                {storageAccess.writeEnabled
-                  ? 'Gravação direta ou ZIP'
-                  : 'Somente ZIP disponível'}
-              </small>
-            </div>
+          <div className="rom-options-panel">
+            <label>
+              <input
+                type="checkbox"
+                checked={webOptions.force}
+                onChange={event =>
+                  setWebOptions({
+                    ...webOptions,
+                    force:
+                      event.target.checked
+                  })
+                }
+                disabled={
+                  running ||
+                  loadingDirectory
+                }
+              />
+              Forçar atualização das imagens
+            </label>
 
-            <div className="web-output-actions">
+            <label>
+              <input
+                type="checkbox"
+                checked={webOptions.background}
+                onChange={event =>
+                  setWebOptions({
+                    ...webOptions,
+                    background:
+                      event.target.checked
+                  })
+                }
+                disabled={
+                  running ||
+                  loadingDirectory
+                }
+              />
+              Baixar imagem -BG
+            </label>
+
+            <label>
+              <input
+                type="checkbox"
+                checked={webOptions.dryRun}
+                onChange={event =>
+                  setWebOptions({
+                    ...webOptions,
+                    dryRun:
+                      event.target.checked
+                  })
+                }
+                disabled={
+                  running ||
+                  loadingDirectory
+                }
+              />
+              Simulação
+            </label>
+
+            <div className="scrape-action-buttons">
               {running ? (
                 <button
+                  type="button"
                   className="stop-scrape-button"
                   onClick={stopScrape}
                 >
                   ■ Parar Scraper
                 </button>
               ) : (
-                <>
-                  <button
-                    className="direct-save-button"
-                    onClick={() =>
-                      startScrape('direct')
-                    }
-                    disabled={
-                      !currentFiles.length ||
+                <button
+                  onClick={() =>
+                    startScrape(
+                      selectedOutputMode
+                    )
+                  }
+                  disabled={
+                    loadingDirectory ||
+                    !currentFiles.length ||
+                    (
+                      selectedOutputMode ===
+                        'direct' &&
                       !storageAccess.writeEnabled
-                    }
-                  >
-                    Salvar diretamente no cartão
-                  </button>
-
-                  <button
-                    className="zip-download-button"
-                    onClick={() =>
-                      startScrape('zip')
-                    }
-                    disabled={!currentFiles.length}
-                  >
-                    Baixar ZIP
-                  </button>
-                </>
+                    )
+                  }
+                >
+                  ▶ Iniciar Scraper
+                </button>
               )}
             </div>
           </div>
 
+          {!running && (
+            <div className="web-output-selector">
+              <div>
+                <strong>Destino do artwork</strong>
+                <small>
+                  Escolha onde as mídias serão gravadas.
+                </small>
+              </div>
+
+              <label>
+                <input
+                  type="radio"
+                  name="web-output-mode"
+                  value="direct"
+                  checked={
+                    selectedOutputMode ===
+                    'direct'
+                  }
+                  onChange={() =>
+                    setSelectedOutputMode(
+                      'direct'
+                    )
+                  }
+                  disabled={
+                    !storageAccess.writeEnabled
+                  }
+                />
+                Cartão SD
+              </label>
+
+              <label>
+                <input
+                  type="radio"
+                  name="web-output-mode"
+                  value="zip"
+                  checked={
+                    selectedOutputMode ===
+                    'zip'
+                  }
+                  onChange={() =>
+                    setSelectedOutputMode('zip')
+                  }
+                />
+                Baixar ZIP
+              </label>
+            </div>
+          )}
+
           {running && (
             <div className="scrape-progress-panel scrape-progress-rich">
-              <div className="scrape-cover-placeholder">
-                <span>ARTWORK</span>
-                <small>
-                  {progress.outputMode === 'direct'
-                    ? 'Salvando no cartão'
-                    : 'Adicionando ao ZIP'}
-                </small>
+              <div className="scrape-current-artwork">
+                {currentScrapeCoverUrl ? (
+                  <img
+                    src={currentScrapeCoverUrl}
+                    alt={`Capa de ${progress.rom}`}
+                  />
+                ) : (
+                  <div className="scrape-cover-placeholder">
+                    <span>CAPA</span>
+                    <small>
+                      {progress.rom
+                        ? 'Aguardando download'
+                        : 'Preparando...'}
+                    </small>
+                  </div>
+                )}
               </div>
 
               <div className="scrape-progress-main">
@@ -2940,7 +3143,13 @@ Jogo-BG.png`}
                   </span>
                 </div>
 
-                <div className="scrape-progress-track">
+                <div
+                  className="scrape-progress-track"
+                  role="progressbar"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow={progressPercent}
+                >
                   <div
                     className="scrape-progress-fill"
                     style={{

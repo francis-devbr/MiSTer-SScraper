@@ -2689,3 +2689,81 @@ main > .card.web-platform-tools {
     min-width: 0;
   }
 }
+
+
+/* =========================================================
+   MODO WEB ALINHADO AO CARD ROMS DO LOCALHOST
+========================================================= */
+
+.web-output-selector {
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 1fr)
+    minmax(150px, auto)
+    minmax(150px, auto);
+  align-items: stretch;
+  gap: 12px;
+  margin: -4px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 245, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(3, 5, 16, 0.48);
+}
+
+.web-output-selector > div {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+}
+
+.web-output-selector > div strong {
+  color: var(--cyan);
+  font-family: "Orbitron", Arial, sans-serif;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.web-output-selector > div small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.web-output-selector > label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 44px;
+  margin: 0;
+  padding: 9px 14px;
+  border: 1px solid rgba(0, 245, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(4, 5, 17, 0.52);
+}
+
+.web-output-selector input[type="radio"] {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--cyan);
+}
+
+@media (max-width: 900px) {
+  .web-output-selector {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .web-output-selector > div {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 580px) {
+  .web-output-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .web-output-selector > div {
+    grid-column: auto;
+  }
+}

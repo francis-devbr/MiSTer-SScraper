@@ -1,5 +1,18 @@
 # Changelog
 
+## 6.10.1
+
+- Alinha o card ROMs web ao mesmo layout do localhost durante o scraping.
+- Adiciona os mesmos checkboxes: forçar atualização, baixar BG e simulação.
+- Faz as três opções funcionarem no processamento web.
+- Usa um único botão contextual Iniciar/Parar Scraper.
+- Adiciona seletor secundário de destino: cartão SD ou ZIP.
+- Mostra a capa atual real à esquerda durante o scraping.
+- Mantém a mesma barra, métricas, ROM atual, tempos e estimativa do localhost.
+- Evita baixar novamente mídias já existentes quando Forçar está desmarcado.
+- Permite simulação sem gravar no cartão nem gerar ZIP.
+
+
 ## 6.10.0
 
 - Adiciona botão Ajuda no cabeçalho do modo web.
