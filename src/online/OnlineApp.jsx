@@ -98,6 +98,8 @@ export default function OnlineApp() {
   const [running, setRunning] = useState(false)
   const onlineAbortController = useRef(null)
   const onlineStopRequested = useRef(false)
+  const onlineStartedAt = useRef(null)
+  const [onlineClock, setOnlineClock] = useState(0)
   const [logs, setLogs] = useState([])
   const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [modal, setModal] = useState({
@@ -129,6 +131,57 @@ export default function OnlineApp() {
     const start = (romPage - 1) * romPageSize
     return currentFiles.slice(start, start + romPageSize)
   }, [currentFiles, romPage, romPageSize])
+
+  useEffect(() => {
+    if (!running) {
+      return undefined
+    }
+
+    setOnlineClock(Date.now())
+
+    const timer = window.setInterval(() => {
+      setOnlineClock(Date.now())
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [running])
+
+  function formatDuration(totalSeconds) {
+    if (
+      totalSeconds === null ||
+      totalSeconds === undefined ||
+      !Number.isFinite(totalSeconds)
+    ) {
+      return '--:--'
+    }
+
+    const seconds = Math.max(0, Math.round(totalSeconds))
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const remainder = seconds % 60
+
+    return hours > 0
+      ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+      : `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+  }
+
+  function onlineElapsedSeconds() {
+    if (!onlineStartedAt.current) return 0
+    return Math.max(
+      0,
+      (onlineClock - onlineStartedAt.current) / 1000
+    )
+  }
+
+  function onlineEstimatedSeconds() {
+    if (progress.current <= 0) return null
+    if (progress.current >= progress.total) return 0
+
+    return (
+      onlineElapsedSeconds() /
+      progress.current
+    ) * (progress.total - progress.current)
+  }
 
   function showModal(type, title, message, details = '') {
     setModal({ open: true, type, title, message, details })
@@ -481,6 +534,8 @@ export default function OnlineApp() {
     onlineAbortController.current = controller
     onlineStopRequested.current = false
 
+    onlineStartedAt.current = Date.now()
+    setOnlineClock(Date.now())
     setRunning(true)
     setLogs([])
     setProgress({
@@ -597,6 +652,7 @@ export default function OnlineApp() {
     } finally {
       onlineAbortController.current = null
       setRunning(false)
+      onlineStartedAt.current = null
     }
   }
 
@@ -690,21 +746,19 @@ export default function OnlineApp() {
             <div><b>ScreenScraper ID:</b> {platforms[selectedSystem]?.systemeid ?? 'não configurado'}</div>
           </div>
           <div className="online-scrape-actions">
-            <button
-              onClick={startOnlineScrape}
-              disabled={running || !currentFiles.length}
-            >
-              {running
-                ? `Processando ${progress.current}/${progress.total}`
-                : 'Gerar artwork e baixar ZIP'}
-            </button>
-
-            {running && (
+            {running ? (
               <button
                 className="stop-scrape-button"
                 onClick={stopOnlineScrape}
               >
-                Parar
+                ■ Parar Scraper
+              </button>
+            ) : (
+              <button
+                onClick={startOnlineScrape}
+                disabled={!currentFiles.length}
+              >
+                ▶ Gerar artwork e baixar ZIP
               </button>
             )}
           </div>
@@ -733,23 +787,49 @@ export default function OnlineApp() {
                 />
               </div>
 
-              <div className="scrape-progress-details">
-                <span>
-                  {progress.total
-                    ? Math.round(
-                        (progress.current / progress.total) * 100
-                      )
-                    : 0}% concluído
-                </span>
-                <span>
-                  Faltam {Math.max(
-                    0,
-                    progress.total - progress.current
-                  )}
-                </span>
+              <div className="scrape-progress-metrics">
+                <div>
+                  <small>Progresso</small>
+                  <strong>
+                    {progress.total
+                      ? Math.round(
+                          (progress.current / progress.total) * 100
+                        )
+                      : 0}%
+                  </strong>
+                </div>
+
+                <div>
+                  <small>Faltam</small>
+                  <strong>
+                    {Math.max(
+                      0,
+                      progress.total - progress.current
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <small>Decorrido</small>
+                  <strong>
+                    {formatDuration(
+                      onlineElapsedSeconds()
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <small>Estimativa</small>
+                  <strong>
+                    {formatDuration(
+                      onlineEstimatedSeconds()
+                    )}
+                  </strong>
+                </div>
               </div>
             </div>
           )}
+
         </section>
 
         <section className="card roms-card">

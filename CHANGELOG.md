@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.5.0
+
+- Substitui Iniciar/Processando/Parar por um único botão contextual.
+- Exibe somente `Parar Scraper` durante o processamento.
+- Adiciona tempo decorrido em tempo real.
+- Calcula estimativa de tempo restante pela média das ROMs concluídas.
+- Exibe capa da ROM atual assim que ela é baixada.
+- Mostra placeholder enquanto a capa ainda não está disponível.
+- Reorganiza progresso, métricas e ROM atual em layout mais profissional.
+- Adiciona os mesmos tempos e botão único ao modo online.
+
+
 ## 6.4.1
 
 - Lê as regiões de mídia disponíveis no resultado do jogo.

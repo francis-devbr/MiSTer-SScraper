@@ -216,12 +216,19 @@ function App() {
   const [running, setRunning] = useState(false)
   const scrapeAbortController = useRef(null)
   const scrapeStoppedByUser = useRef(false)
+  const scrapeStartedAt = useRef(null)
+  const [scrapeClock, setScrapeClock] = useState(0)
   const [scrapeProgress, setScrapeProgress] = useState({
     current: 0,
     total: 0,
     remaining: 0,
     percent: 0,
-    rom: ''
+    rom: '',
+    romPath: '',
+    relativeDirectory: '.',
+    coverAvailable: false,
+    backgroundAvailable: false,
+    artworkVersion: 0
   })
   const [choosingDirectory, setChoosingDirectory] = useState(false)
   const [scanningRemote, setScanningRemote] = useState(false)
@@ -506,6 +513,116 @@ function App() {
     } finally {
       setTestingMister(false)
     }
+  }
+
+  useEffect(() => {
+    if (!running) {
+      return undefined
+    }
+
+    setScrapeClock(Date.now())
+
+    const timer = window.setInterval(() => {
+      setScrapeClock(Date.now())
+    }, 1000)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [running])
+
+  function formatDuration(totalSeconds) {
+    if (
+      totalSeconds === null ||
+      totalSeconds === undefined ||
+      !Number.isFinite(totalSeconds)
+    ) {
+      return '--:--'
+    }
+
+    const seconds = Math.max(
+      0,
+      Math.round(totalSeconds)
+    )
+
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const remainder = seconds % 60
+
+    if (hours > 0) {
+      return [
+        hours,
+        String(minutes).padStart(2, '0'),
+        String(remainder).padStart(2, '0')
+      ].join(':')
+    }
+
+    return [
+      String(minutes).padStart(2, '0'),
+      String(remainder).padStart(2, '0')
+    ].join(':')
+  }
+
+  function scrapeElapsedSeconds() {
+    if (!scrapeStartedAt.current) {
+      return 0
+    }
+
+    return Math.max(
+      0,
+      (scrapeClock - scrapeStartedAt.current) / 1000
+    )
+  }
+
+  function scrapeEstimatedRemainingSeconds() {
+    if (
+      scrapeProgress.current <= 0 ||
+      scrapeProgress.remaining <= 0
+    ) {
+      return scrapeProgress.remaining === 0
+        ? 0
+        : null
+    }
+
+    const averagePerRom =
+      scrapeElapsedSeconds() /
+      scrapeProgress.current
+
+    return averagePerRom *
+      scrapeProgress.remaining
+  }
+
+  function currentScrapeRom() {
+    if (!scrapeProgress.romPath) {
+      return null
+    }
+
+    return (
+      roms.find(rom =>
+        rom.path === scrapeProgress.romPath
+      ) || {
+        name: scrapeProgress.rom,
+        path: scrapeProgress.romPath,
+        relativeDirectory:
+          scrapeProgress.relativeDirectory
+      }
+    )
+  }
+
+  function currentScrapeCoverUrl() {
+    const rom = currentScrapeRom()
+
+    if (
+      !rom ||
+      !scrapeProgress.coverAvailable
+    ) {
+      return ''
+    }
+
+    return `${artworkUrlForRom(
+      rom,
+      'box'
+    )}&v=${scrapeProgress.artworkVersion}`
   }
 
   function showModal({
@@ -909,6 +1026,8 @@ function App() {
     scrapeAbortController.current = controller
     scrapeStoppedByUser.current = false
 
+    scrapeStartedAt.current = Date.now()
+    setScrapeClock(Date.now())
     setRunning(true)
     setLogs([])
     setScrapeProgress({
@@ -916,7 +1035,12 @@ function App() {
       total: roms.length,
       remaining: roms.length,
       percent: 0,
-      rom: ''
+      rom: '',
+      romPath: '',
+      relativeDirectory: '.',
+      coverAvailable: false,
+      backgroundAvailable: false,
+      artworkVersion: Date.now()
     })
 
     try {
@@ -966,30 +1090,77 @@ function App() {
             const event = JSON.parse(line)
 
             if (event.type === 'progress') {
-              setScrapeProgress(current => ({
-                ...current,
-                current:
-                  Number(event.current) || 0,
-                total:
-                  Number(event.total) || 0,
-                remaining:
-                  Number(event.remaining) || 0,
-                percent:
-                  Number(event.percent) || 0,
-                rom:
-                  event.rom || current.rom
-              }))
+              setScrapeProgress(current => {
+                const changedRom =
+                  event.romPath &&
+                  event.romPath !== current.romPath
+
+                return {
+                  ...current,
+                  current:
+                    Number(event.current) || 0,
+                  total:
+                    Number(event.total) || 0,
+                  remaining:
+                    Number(event.remaining) || 0,
+                  percent:
+                    Number(event.percent) || 0,
+                  rom:
+                    event.rom || current.rom,
+                  romPath:
+                    event.romPath || current.romPath,
+                  relativeDirectory:
+                    event.relativeDirectory ||
+                    current.relativeDirectory,
+                  coverAvailable:
+                    changedRom
+                      ? Boolean(event.boxExists)
+                      : current.coverAvailable,
+                  backgroundAvailable:
+                    changedRom
+                      ? Boolean(event.backgroundExists)
+                      : current.backgroundAvailable,
+                  artworkVersion:
+                    changedRom
+                      ? Date.now()
+                      : current.artworkVersion
+                }
+              })
+              continue
+            }
+
+            if (event.type === 'artwork') {
+              setScrapeProgress(current => {
+                if (
+                  event.romPath !== current.romPath
+                ) {
+                  return current
+                }
+
+                return {
+                  ...current,
+                  coverAvailable:
+                    event.artworkType === 'box'
+                      ? true
+                      : current.coverAvailable,
+                  backgroundAvailable:
+                    event.artworkType === 'background'
+                      ? true
+                      : current.backgroundAvailable,
+                  artworkVersion: Date.now()
+                }
+              })
               continue
             }
 
             if (event.type === 'complete') {
-              setScrapeProgress({
+              setScrapeProgress(current => ({
+                ...current,
                 current: event.total || 0,
                 total: event.total || 0,
                 remaining: 0,
-                percent: 100,
-                rom: ''
-              })
+                percent: 100
+              }))
 
               addLog(
                 event.message || '=== FINALIZADO ==='
@@ -1050,6 +1221,7 @@ function App() {
       scrapeAbortController.current = null
       setRunning(false)
       await loadRoms(selectedSystem, source)
+      scrapeStartedAt.current = null
     }
   }
 
@@ -1695,83 +1867,134 @@ function App() {
             </label>
 
             <div className="scrape-action-buttons">
-              <button
-                onClick={startScrape}
-                disabled={
-                  running ||
-                  loadingRoms ||
-                  !selectedSystem ||
-                  (
-                    source === 'local' &&
-                    !current?.availableLocal
-                  ) ||
-                  (
-                    source === 'network' &&
-                    !current?.availableRemote
-                  )
-                }
-              >
-                {running
-                  ? 'Processando...'
-                  : 'Iniciar Scraper'}
-              </button>
-
-              {running && (
+              {running ? (
                 <button
                   type="button"
                   className="stop-scrape-button"
                   onClick={stopScrape}
                 >
-                  Parar
+                  ■ Parar Scraper
+                </button>
+              ) : (
+                <button
+                  onClick={startScrape}
+                  disabled={
+                    loadingRoms ||
+                    !selectedSystem ||
+                    (
+                      source === 'local' &&
+                      !current?.availableLocal
+                    ) ||
+                    (
+                      source === 'network' &&
+                      !current?.availableRemote
+                    )
+                  }
+                >
+                  ▶ Iniciar Scraper
                 </button>
               )}
             </div>
           </div>
 
           {running && (
-            <div className="scrape-progress-panel">
-              <div className="scrape-progress-header">
-                <strong>
-                  Processando ROMs
-                </strong>
-
-                <span>
-                  {scrapeProgress.current} / {scrapeProgress.total}
-                </span>
+            <div className="scrape-progress-panel scrape-progress-rich">
+              <div className="scrape-current-artwork">
+                {currentScrapeCoverUrl() ? (
+                  <img
+                    src={currentScrapeCoverUrl()}
+                    alt={`Capa de ${scrapeProgress.rom}`}
+                  />
+                ) : (
+                  <div className="scrape-cover-placeholder">
+                    <span>CAPA</span>
+                    <small>
+                      {scrapeProgress.rom
+                        ? 'Aguardando download'
+                        : 'Preparando...'}
+                    </small>
+                  </div>
+                )}
               </div>
 
-              <div
-                className="scrape-progress-track"
-                role="progressbar"
-                aria-valuemin="0"
-                aria-valuemax="100"
-                aria-valuenow={scrapeProgress.percent}
-              >
-                <div
-                  className="scrape-progress-fill"
-                  style={{
-                    width: `${scrapeProgress.percent}%`
-                  }}
-                />
-              </div>
+              <div className="scrape-progress-main">
+                <div className="scrape-progress-header">
+                  <strong>
+                    Processando ROMs
+                  </strong>
 
-              <div className="scrape-progress-details">
-                <span>
-                  {scrapeProgress.percent}% concluído
-                </span>
-
-                <span>
-                  Faltam {scrapeProgress.remaining}
-                </span>
-              </div>
-
-              {scrapeProgress.rom && (
-                <div className="scrape-current-rom">
-                  Atual: {scrapeProgress.rom}
+                  <span>
+                    {scrapeProgress.current} / {scrapeProgress.total}
+                  </span>
                 </div>
-              )}
+
+                <div
+                  className="scrape-progress-track"
+                  role="progressbar"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow={scrapeProgress.percent}
+                >
+                  <div
+                    className="scrape-progress-fill"
+                    style={{
+                      width: `${scrapeProgress.percent}%`
+                    }}
+                  />
+                </div>
+
+                <div className="scrape-progress-metrics">
+                  <div>
+                    <small>Progresso</small>
+                    <strong>
+                      {scrapeProgress.percent}%
+                    </strong>
+                  </div>
+
+                  <div>
+                    <small>Faltam</small>
+                    <strong>
+                      {scrapeProgress.remaining}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <small>Decorrido</small>
+                    <strong>
+                      {formatDuration(
+                        scrapeElapsedSeconds()
+                      )}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <small>Estimativa</small>
+                    <strong>
+                      {formatDuration(
+                        scrapeEstimatedRemainingSeconds()
+                      )}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="scrape-current-rom">
+                  <span>Atual</span>
+                  <strong>
+                    {scrapeProgress.rom ||
+                      'Preparando fila...'}
+                  </strong>
+
+                  {scrapeProgress.relativeDirectory &&
+                    scrapeProgress.relativeDirectory !== '.' && (
+                    <small>
+                      {scrapeProgress.relativeDirectory}
+                    </small>
+                  )}
+                </div>
+              </div>
             </div>
           )}
+
 
           <div className="rom-toolbar">
             <div className="rom-page-info">

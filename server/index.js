@@ -1949,7 +1949,13 @@ app.post('/api/scrape', async (req, res) => {
           roms.length > 0
             ? Math.round((i / roms.length) * 100)
             : 0,
-        rom: rom.name
+        rom: rom.name,
+        romPath: rom.path,
+        relativeDirectory:
+          rom.relativeDirectory || '.',
+        boxExists: Boolean(rom.boxExists),
+        backgroundExists:
+          Boolean(rom.backgroundExists)
       })
 
       const base =
@@ -2121,6 +2127,14 @@ app.post('/api/scrape', async (req, res) => {
               send(
                 `  BOX enviada: ${remoteFile}`
               )
+
+              send({
+                type: 'artwork',
+                artworkType: 'box',
+                rom: rom.name,
+                romPath: rom.path,
+                filePath: remoteFile
+              })
             } else {
               fs.mkdirSync(
                 rom.mediaPath,
@@ -2143,6 +2157,14 @@ app.post('/api/scrape', async (req, res) => {
               send(
                 `  BOX: ${localFile}`
               )
+
+              send({
+                type: 'artwork',
+                artworkType: 'box',
+                rom: rom.name,
+                romPath: rom.path,
+                filePath: localFile
+              })
             }
           } else {
             send(
@@ -2196,6 +2218,14 @@ app.post('/api/scrape', async (req, res) => {
               send(
                 `  BG enviada: ${remoteFile}`
               )
+
+              send({
+                type: 'artwork',
+                artworkType: 'background',
+                rom: rom.name,
+                romPath: rom.path,
+                filePath: remoteFile
+              })
             } else {
               fs.mkdirSync(
                 rom.mediaPath,
@@ -2218,6 +2248,14 @@ app.post('/api/scrape', async (req, res) => {
               send(
                 `  BG: ${localFile}`
               )
+
+              send({
+                type: 'artwork',
+                artworkType: 'background',
+                rom: rom.name,
+                romPath: rom.path,
+                filePath: localFile
+              })
             }
           } else {
             send(
