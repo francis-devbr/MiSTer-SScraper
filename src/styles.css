@@ -2372,3 +2372,61 @@ main > .card.web-platform-editor {
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   WEB: PLATAFORMA / EDITOR / GERENCIAMENTO IGUAL AO LOCAL
+========================================================= */
+
+main > .card.web-platform-editor,
+main > .card.web-platform-tools {
+  grid-column: 1 / -1 !important;
+  width: 100%;
+}
+
+/*
+ * O editor segue o mesmo fluxo vertical usado no localhost.
+ */
+.web-platform-editor .platform-editor-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.web-platform-editor .platform-editor-fields .field {
+  width: 100%;
+}
+
+.web-platform-editor .platform-editor-fields textarea {
+  min-height: 118px;
+  resize: vertical;
+}
+
+.web-platform-editor .editor-actions {
+  justify-content: flex-start;
+}
+
+.platform-manager-note {
+  margin-top: 0;
+  margin-bottom: 16px;
+  line-height: 1.55;
+}
+
+/*
+ * O botão de edição agora fica no cabeçalho do card Plataforma,
+ * como no modo localhost.
+ */
+#card-content-web-platform + * {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .web-platform-editor .editor-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .web-platform-editor .editor-actions button {
+    width: 100%;
+  }
+}

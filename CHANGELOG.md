@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.9.1
+
+- Move o botão Editar plataforma para o cabeçalho do card Plataforma.
+- Altera o botão para Fechar editor enquanto o editor estiver aberto.
+- Coloca o card Editor de plataforma imediatamente após Plataforma.
+- Coloca Gerenciar plataformas depois do editor.
+- Remove o botão duplicado de edição do card Gerenciar plataformas.
+- Ajusta o editor web para o mesmo fluxo vertical usado no localhost.
+- Mantém sugestões de pastas não reconhecidas no card Gerenciar plataformas.
+
+
 ## 6.9.0
 
 - Corrige o preview flutuante para exibir capa e fundo reais do cartão.

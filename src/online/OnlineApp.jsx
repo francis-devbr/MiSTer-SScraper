@@ -2410,6 +2410,23 @@ export default function OnlineApp() {
           id="web-platform"
           title="Plataforma"
           badge={currentFiles.length}
+          actions={
+            <button
+              className="small"
+              onClick={() => {
+                if (showPlatformEditor) {
+                  setShowPlatformEditor(false)
+                } else {
+                  editSelectedPlatform()
+                }
+              }}
+              disabled={!selectedSystem}
+            >
+              {showPlatformEditor
+                ? 'Fechar editor'
+                : 'Editar plataforma'}
+            </button>
+          }
         >
           <select
             value={selectedSystem}
@@ -2456,72 +2473,13 @@ export default function OnlineApp() {
           </div>
         </CollapsibleCard>
 
-        <CollapsibleCard
-          id="web-platform-editor-tools"
-          title="Gerenciar plataformas"
-          badge={unknownFolders.length}
-          defaultCollapsed={
-            unknownFolders.length === 0
-          }
-          className="web-platform-tools"
-        >
-          <div className="platform-tools-actions">
-            <button
-              className="small"
-              onClick={editSelectedPlatform}
-              disabled={!selectedSystem}
-            >
-              Editar plataforma selecionada
-            </button>
-
-            <span className="settings-note">
-              Alterações são salvas no navegador
-              e, com permissão, em
-              games/peas_local.json.
-            </span>
-          </div>
-
-          {unknownFolders.length > 0 && (
-            <>
-              <h3 className="platform-subtitle">
-                Pastas não reconhecidas
-              </h3>
-
-              <div className="suggestion-list">
-                {unknownFolders.map(folder => (
-                  <div
-                    className="suggestion-item"
-                    key={folder}
-                  >
-                    <div>
-                      <strong>{folder}</strong>
-                      <small>
-                        Adicione manualmente ao catálogo
-                      </small>
-                    </div>
-
-                    <button
-                      className="small"
-                      onClick={() =>
-                        addUnknownPlatform(folder)
-                      }
-                    >
-                      Adicionar plataforma
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </CollapsibleCard>
-
         {showPlatformEditor && (
           <CollapsibleCard
             id="web-platform-editor"
             title="Editor de plataforma"
             className="platform-editor web-platform-editor"
           >
-            <div className="platform-editor-grid">
+            <div className="platform-editor-fields">
               <label className="field">
                 ID
                 <input
@@ -2634,6 +2592,56 @@ export default function OnlineApp() {
             </div>
           </CollapsibleCard>
         )}
+
+        <CollapsibleCard
+          id="web-platform-editor-tools"
+          title="Gerenciar plataformas"
+          badge={unknownFolders.length}
+          defaultCollapsed={
+            unknownFolders.length === 0
+          }
+          className="web-platform-tools"
+        >
+          <p className="settings-note platform-manager-note">
+            Pastas não reconhecidas podem ser adicionadas
+            manualmente ao catálogo. As alterações são salvas
+            no navegador e, com permissão, em
+            games/peas_local.json.
+          </p>
+
+          {unknownFolders.length > 0 && (
+            <>
+              <h3 className="platform-subtitle">
+                Pastas não reconhecidas
+              </h3>
+
+              <div className="suggestion-list">
+                {unknownFolders.map(folder => (
+                  <div
+                    className="suggestion-item"
+                    key={folder}
+                  >
+                    <div>
+                      <strong>{folder}</strong>
+                      <small>
+                        Adicione manualmente ao catálogo
+                      </small>
+                    </div>
+
+                    <button
+                      className="small"
+                      onClick={() =>
+                        addUnknownPlatform(folder)
+                      }
+                    >
+                      Adicionar plataforma
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </CollapsibleCard>
 
         <CollapsibleCard
           id="web-roms"
