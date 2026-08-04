@@ -146,6 +146,86 @@ function detectRegion(name) {
   return 'us'
 }
 
+
+function genreEntries(game) {
+  const genres =
+    game?.genres?.genre ??
+    game?.genres ??
+    []
+
+  if (Array.isArray(genres)) {
+    return genres
+  }
+
+  if (genres && typeof genres === 'object') {
+    return Object.values(genres)
+      .flat()
+      .filter(Boolean)
+  }
+
+  return []
+}
+
+function genreNames(genre) {
+  const names =
+    genre?.noms?.nom ??
+    genre?.noms ??
+    []
+
+  if (Array.isArray(names)) {
+    return names
+  }
+
+  if (names && typeof names === 'object') {
+    return Object.values(names)
+      .flat()
+      .filter(Boolean)
+  }
+
+  return []
+}
+
+function englishPrimaryGenre(game) {
+  const genres = genreEntries(game)
+
+  if (!genres.length) {
+    return 'Unknown Genre'
+  }
+
+  const primary =
+    genres.find(genre =>
+      String(
+        genre?.principale ??
+        genre?.["@_principale"] ??
+        ''
+      ) === '1'
+    ) || genres[0]
+
+  const english =
+    genreNames(primary).find(name =>
+      String(
+        name?.langue ??
+        name?.["@_langue"] ??
+        ''
+      ).toLowerCase() === 'en'
+    )
+
+  return safeFolderName(
+    english?.text ??
+    english?.["#text"] ??
+    primary?.nom ??
+    'Unknown Genre'
+  )
+}
+
+function safeFolderName(value) {
+  return String(value || '')
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[. ]+$/g, '')
+    .trim() || 'Unknown Genre'
+}
+
 function FeedbackModal({ modal, onClose }) {
   if (!modal.open) {
     return null
@@ -319,7 +399,8 @@ export default function OnlineApp() {
   const [webOptions, setWebOptions] = useState({
     force: false,
     background: true,
-    dryRun: false
+    dryRun: false,
+    organizeByGenre: false
   })
   const [selectedOutputMode, setSelectedOutputMode] =
     useState('direct')
@@ -1885,6 +1966,177 @@ export default function OnlineApp() {
     setCurrentScrapeCoverUrl(url)
   }
 
+  async function copyFileToHandle(
+    sourceFile,
+    targetDirectory,
+    targetName
+  ) {
+    const targetHandle =
+      await targetDirectory.getFileHandle(
+        targetName,
+        { create: true }
+      )
+
+    const writable =
+      await targetHandle.createWritable()
+
+    await writable.write(sourceFile)
+    await writable.close()
+  }
+
+  async function moveExistingMediaToGenre(
+    sourceDirectory,
+    targetDirectory,
+    base
+  ) {
+    const result = {
+      boxMoved: false,
+      backgroundMoved: false
+    }
+
+    let sourceMedia
+
+    try {
+      sourceMedia =
+        await sourceDirectory
+          .getDirectoryHandle('media')
+    } catch {
+      return result
+    }
+
+    const targetMedia =
+      await targetDirectory
+        .getDirectoryHandle(
+          'media',
+          { create: true }
+        )
+
+    const entries = [
+      {
+        name: `${base}.png`,
+        type: 'box'
+      },
+      {
+        name: `${base}-BG.png`,
+        type: 'background'
+      }
+    ]
+
+    for (const entry of entries) {
+      try {
+        const sourceHandle =
+          await sourceMedia
+            .getFileHandle(
+              entry.name
+            )
+
+        const file =
+          await sourceHandle.getFile()
+
+        await copyFileToHandle(
+          file,
+          targetMedia,
+          entry.name
+        )
+
+        await sourceMedia
+          .removeEntry(
+            entry.name
+          )
+
+        if (entry.type === 'box') {
+          result.boxMoved = true
+        } else {
+          result.backgroundMoved = true
+        }
+      } catch {
+        // Arquivo de mídia não existe.
+      }
+    }
+
+    return result
+  }
+
+  async function organizeWebRomByGenre(
+    item,
+    genre
+  ) {
+    if (!item.directoryHandle) {
+      throw new Error(
+        'A organização exige acesso de gravação ao cartão.'
+      )
+    }
+
+    if (
+      item.relativeDirectory
+        ?.split('/')
+        .at(-1)
+        ?.toLowerCase() ===
+      genre.toLowerCase()
+    ) {
+      return item
+    }
+
+    const targetDirectory =
+      await item.directoryHandle
+        .getDirectoryHandle(
+          genre,
+          { create: true }
+        )
+
+    const sourceFile =
+      await item.fileHandle.getFile()
+
+    await copyFileToHandle(
+      sourceFile,
+      targetDirectory,
+      item.name
+    )
+
+    const movedArtwork =
+      await moveExistingMediaToGenre(
+        item.directoryHandle,
+        targetDirectory,
+        stripExtension(item.name)
+      )
+
+    await item.directoryHandle
+      .removeEntry(item.name)
+
+    const targetFileHandle =
+      await targetDirectory
+        .getFileHandle(item.name)
+
+    const targetFile =
+      await targetFileHandle.getFile()
+
+    const relativeDirectory =
+      item.relativeDirectory === '.'
+        ? genre
+        : `${item.relativeDirectory}/${genre}`
+
+    return {
+      ...item,
+      file: targetFile,
+      fileHandle: targetFileHandle,
+      directoryHandle: targetDirectory,
+      boxExists:
+        item.boxExists ||
+        movedArtwork.boxMoved,
+      backgroundExists:
+        item.backgroundExists ||
+        movedArtwork.backgroundMoved,
+      relativeDirectory,
+      relativePath:
+        [
+          'games',
+          item.systemFolder,
+          relativeDirectory,
+          item.name
+        ].join('/')
+    }
+  }
+
   async function writeBlob(
     directoryHandle,
     fileName,
@@ -2104,7 +2356,7 @@ export default function OnlineApp() {
             )
           }
 
-          const item =
+          let item =
             queued.files[index]
 
           globalIndex++
@@ -2143,6 +2395,7 @@ export default function OnlineApp() {
             )
 
           if (
+            !webOptions.organizeByGenre &&
             !needsBox &&
             !needsBackground
           ) {
@@ -2164,6 +2417,57 @@ export default function OnlineApp() {
               missing++
               addLog('  NÃO ENCONTRADO')
               continue
+            }
+
+            if (
+              webOptions.organizeByGenre
+            ) {
+              const genre =
+                englishPrimaryGenre(game)
+
+              addLog(
+                `  Gênero principal (en): ${genre}`
+              )
+
+              if (webOptions.dryRun) {
+                addLog(
+                  `  SIMULAÇÃO: moveria para ${genre}/${item.name}`
+                )
+              } else {
+                item =
+                  await organizeWebRomByGenre(
+                    item,
+                    genre
+                  )
+
+                setFiles(current =>
+                  current.map(currentItem =>
+                    currentItem.relativePath ===
+                    queued.files[index]
+                      .relativePath
+                      ? item
+                      : currentItem
+                  )
+                )
+
+                addLog(
+                  `  ROM organizada: ${genre}/${item.name}`
+                )
+
+                if (item.boxExists) {
+                  addLog(
+                    '  Capa existente movida para a nova pasta media.'
+                  )
+                }
+
+                if (
+                  item.backgroundExists
+                ) {
+                  addLog(
+                    '  Fundo existente movido para a nova pasta media.'
+                  )
+                }
+              }
             }
 
             const base =
@@ -3244,6 +3548,26 @@ Jogo-BG.png`}
                 }
               />
               Simulação
+            </label>
+
+            <label className="organize-genre-option">
+              <input
+                type="checkbox"
+                checked={webOptions.organizeByGenre}
+                onChange={event =>
+                  setWebOptions({
+                    ...webOptions,
+                    organizeByGenre:
+                      event.target.checked
+                  })
+                }
+                disabled={
+                  running ||
+                  loadingDirectory ||
+                  !storageAccess.writeEnabled
+                }
+              />
+              Organizar ROMs por gênero
             </label>
 
             <div className="scrape-action-buttons">

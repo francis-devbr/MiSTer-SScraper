@@ -231,6 +231,422 @@ function strip(file) {
   return file.slice(0, index)
 }
 
+
+function genreEntriesFromGame(game) {
+  const genres =
+    game?.genres?.genre ??
+    game?.genres ??
+    []
+
+  if (Array.isArray(genres)) {
+    return genres
+  }
+
+  if (genres && typeof genres === 'object') {
+    return Object.values(genres)
+      .flat()
+      .filter(Boolean)
+  }
+
+  return []
+}
+
+function namesFromGenre(genre) {
+  const names =
+    genre?.noms?.nom ??
+    genre?.noms ??
+    []
+
+  if (Array.isArray(names)) {
+    return names
+  }
+
+  if (names && typeof names === 'object') {
+    return Object.values(names)
+      .flat()
+      .filter(Boolean)
+  }
+
+  return []
+}
+
+function englishGenreName(game) {
+  const genres = genreEntriesFromGame(game)
+
+  if (!genres.length) {
+    return ''
+  }
+
+  const primary =
+    genres.find(genre =>
+      String(
+        genre?.principale ??
+        genre?.["@_principale"] ??
+        ''
+      ) === '1'
+    ) || genres[0]
+
+  const names = namesFromGenre(primary)
+
+  const english =
+    names.find(name =>
+      String(
+        name?.langue ??
+        name?.["@_langue"] ??
+        ''
+      ).toLowerCase() === 'en'
+    )
+
+  return String(
+    english?.text ??
+    english?.["#text"] ??
+    primary?.nom ??
+    ''
+  ).trim()
+}
+
+function safeGenreFolder(value) {
+  const cleaned =
+    String(value || '')
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/[. ]+$/g, '')
+      .trim()
+
+  return cleaned || 'Unknown Genre'
+}
+
+function isAlreadyInGenreDirectory(
+  directory,
+  genre,
+  pathApi
+) {
+  return (
+    pathApi.basename(directory)
+      .toLowerCase() ===
+    genre.toLowerCase()
+  )
+}
+
+function moveLocalArtworkIfPresent(
+  oldMediaPath,
+  newMediaPath,
+  base,
+  send = null
+) {
+  const result = {
+    boxMoved: false,
+    backgroundMoved: false
+  }
+
+  const entries = [
+    {
+      name: `${base}.png`,
+      type: 'box'
+    },
+    {
+      name: `${base}-BG.png`,
+      type: 'background'
+    }
+  ]
+
+  for (const entry of entries) {
+    const source =
+      path.join(
+        oldMediaPath,
+        entry.name
+      )
+
+    if (!fs.existsSync(source)) {
+      continue
+    }
+
+    fs.mkdirSync(
+      newMediaPath,
+      { recursive: true }
+    )
+
+    const target =
+      path.join(
+        newMediaPath,
+        entry.name
+      )
+
+    if (fs.existsSync(target)) {
+      fs.rmSync(
+        target,
+        { force: true }
+      )
+    }
+
+    fs.renameSync(
+      source,
+      target
+    )
+
+    if (entry.type === 'box') {
+      result.boxMoved = true
+      send?.(
+        `  Capa existente movida: ${target}`
+      )
+    } else {
+      result.backgroundMoved = true
+      send?.(
+        `  Fundo existente movido: ${target}`
+      )
+    }
+  }
+
+  return result
+}
+
+function organizeLocalRomByGenre(
+  rom,
+  genre,
+  send
+) {
+  if (
+    isAlreadyInGenreDirectory(
+      rom.directory,
+      genre,
+      path
+    )
+  ) {
+    send?.(
+      `  GÊNERO: já organizada em ${genre}`
+    )
+    return rom
+  }
+
+  const targetDirectory =
+    path.join(
+      rom.directory,
+      genre
+    )
+
+  const targetPath =
+    path.join(
+      targetDirectory,
+      rom.name
+    )
+
+  const targetMediaPath =
+    path.join(
+      targetDirectory,
+      'media'
+    )
+
+  fs.mkdirSync(
+    targetDirectory,
+    { recursive: true }
+  )
+
+  if (
+    fs.existsSync(targetPath) &&
+    path.resolve(targetPath) !==
+      path.resolve(rom.path)
+  ) {
+    throw new Error(
+      `Já existe uma ROM no destino: ${targetPath}`
+    )
+  }
+
+  const movedArtwork =
+    moveLocalArtworkIfPresent(
+      rom.mediaPath,
+      targetMediaPath,
+      rom.base,
+      send
+    )
+
+  fs.renameSync(
+    rom.path,
+    targetPath
+  )
+
+  send?.(
+    `  ROM organizada: ${genre}/${rom.name}`
+  )
+
+  return {
+    ...rom,
+    path: targetPath,
+    directory: targetDirectory,
+    mediaPath: targetMediaPath,
+    boxExists:
+      rom.boxExists ||
+      movedArtwork.boxMoved,
+    backgroundExists:
+      rom.backgroundExists ||
+      movedArtwork.backgroundMoved,
+    relativeDirectory:
+      rom.relativeDirectory === '.'
+        ? genre
+        : path.join(
+            rom.relativeDirectory,
+            genre
+          )
+  }
+}
+
+async function moveRemoteArtworkIfPresent(
+  sftp,
+  oldMediaPath,
+  newMediaPath,
+  base,
+  send = null
+) {
+  const result = {
+    boxMoved: false,
+    backgroundMoved: false
+  }
+
+  const entries = [
+    {
+      name: `${base}.png`,
+      type: 'box'
+    },
+    {
+      name: `${base}-BG.png`,
+      type: 'background'
+    }
+  ]
+
+  for (const entry of entries) {
+    const name = entry.name
+    const source =
+      path.posix.join(
+        oldMediaPath,
+        name
+      )
+
+    if (!(await sftp.exists(source))) {
+      continue
+    }
+
+    await sftp.mkdir(
+      newMediaPath,
+      true
+    )
+
+    const target =
+      path.posix.join(
+        newMediaPath,
+        name
+      )
+
+    if (await sftp.exists(target)) {
+      await sftp.delete(target)
+    }
+
+    await sftp.rename(
+      source,
+      target
+    )
+
+    if (entry.type === 'box') {
+      result.boxMoved = true
+      send?.(
+        `  Capa existente movida: ${target}`
+      )
+    } else {
+      result.backgroundMoved = true
+      send?.(
+        `  Fundo existente movido: ${target}`
+      )
+    }
+  }
+
+  return result
+}
+
+async function organizeRemoteRomByGenre(
+  sftp,
+  rom,
+  genre,
+  send
+) {
+  if (
+    isAlreadyInGenreDirectory(
+      rom.directory,
+      genre,
+      path.posix
+    )
+  ) {
+    send?.(
+      `  GÊNERO: já organizada em ${genre}`
+    )
+    return rom
+  }
+
+  const targetDirectory =
+    path.posix.join(
+      rom.directory,
+      genre
+    )
+
+  const targetPath =
+    path.posix.join(
+      targetDirectory,
+      rom.name
+    )
+
+  const targetMediaPath =
+    path.posix.join(
+      targetDirectory,
+      'media'
+    )
+
+  await sftp.mkdir(
+    targetDirectory,
+    true
+  )
+
+  if (await sftp.exists(targetPath)) {
+    throw new Error(
+      `Já existe uma ROM no destino: ${targetPath}`
+    )
+  }
+
+  const movedArtwork =
+    await moveRemoteArtworkIfPresent(
+      sftp,
+      rom.mediaPath,
+      targetMediaPath,
+      rom.base,
+      send
+    )
+
+  await sftp.rename(
+    rom.path,
+    targetPath
+  )
+
+  send?.(
+    `  ROM organizada: ${genre}/${rom.name}`
+  )
+
+  return {
+    ...rom,
+    path: targetPath,
+    directory: targetDirectory,
+    mediaPath: targetMediaPath,
+    boxExists:
+      rom.boxExists ||
+      movedArtwork.boxMoved,
+    backgroundExists:
+      rom.backgroundExists ||
+      movedArtwork.backgroundMoved,
+    relativeDirectory:
+      rom.relativeDirectory === '.'
+        ? genre
+        : path.posix.join(
+            rom.relativeDirectory,
+            genre
+          )
+  }
+}
+
 function normalizeExtensions(extensions) {
   if (!Array.isArray(extensions)) {
     return []
@@ -1760,6 +2176,9 @@ app.post('/api/scrape', async (req, res) => {
   const dryRun =
     Boolean(req.body.dryRun)
 
+  const organizeByGenre =
+    Boolean(req.body.organizeByGenre)
+
   res.status(200)
 
   res.setHeader(
@@ -1937,7 +2356,7 @@ app.post('/api/scrape', async (req, res) => {
       if (clientAborted) {
         break
       }
-      const rom =
+      let rom =
         roms[i]
 
       send({
@@ -1975,6 +2394,7 @@ app.post('/api/scrape', async (req, res) => {
        */
 
       if (
+        !organizeByGenre &&
         !force &&
         rom.boxExists &&
         (
@@ -2000,7 +2420,10 @@ app.post('/api/scrape', async (req, res) => {
         continue
       }
 
-      if (dryRun) {
+      if (
+        dryRun &&
+        !organizeByGenre
+      ) {
         send(
           '  DRY-RUN: não consultando API'
         )
@@ -2084,6 +2507,80 @@ app.post('/api/scrape', async (req, res) => {
             game.nom || base
           } [id=${game.id}]`
         )
+
+        if (organizeByGenre) {
+          const genre =
+            safeGenreFolder(
+              englishGenreName(game)
+            )
+
+          send(
+            `  Gênero principal (en): ${genre}`
+          )
+
+          if (dryRun) {
+            send(
+              `  SIMULAÇÃO: moveria para ${genre}/${rom.name}`
+            )
+          } else if (
+            source === 'network'
+          ) {
+            rom =
+              await organizeRemoteRomByGenre(
+                sftp,
+                rom,
+                genre,
+                send
+              )
+          } else {
+            rom =
+              organizeLocalRomByGenre(
+                rom,
+                genre,
+                send
+              )
+          }
+
+          send({
+            type: 'organized',
+            rom: rom.name,
+            romPath: rom.path,
+            relativeDirectory:
+              rom.relativeDirectory,
+            genre,
+            boxExists:
+              Boolean(rom.boxExists),
+            backgroundExists:
+              Boolean(
+                rom.backgroundExists
+              )
+          })
+        }
+
+        if (dryRun) {
+          send(
+            '  DRY-RUN: nenhuma mídia foi gravada'
+          )
+
+          send({
+            type: 'progress',
+            current: i + 1,
+            total: roms.length,
+            remaining:
+              roms.length - (i + 1),
+            percent:
+              roms.length > 0
+                ? Math.round(
+                    (
+                      (i + 1) /
+                      roms.length
+                    ) * 100
+                  )
+                : 100
+          })
+
+          continue
+        }
 
         /*
          * BOX

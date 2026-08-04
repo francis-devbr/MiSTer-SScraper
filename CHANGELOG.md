@@ -1,5 +1,30 @@
 # Changelog
 
+## 6.12.1
+
+- Garante que capas já baixadas sejam movidas ao organizar por gênero.
+- Garante que fundos já baixados sejam movidos ao organizar por gênero.
+- Cria a nova pasta media antes de mover os arquivos existentes.
+- Atualiza imediatamente o status de capa e fundo após a mudança.
+- Registra no log cada capa e fundo movidos.
+- Só baixa novamente as mídias que continuarem ausentes.
+- Aplica o comportamento a diretório local, SFTP e cartão SD web.
+
+
+## 6.12.0
+
+- Adiciona a opção Organizar ROMs por gênero nos modos local e web.
+- Usa o gênero principal retornado pelo ScreenScraper.
+- Usa exclusivamente o nome do gênero com langue=en.
+- Cria uma subpasta com o gênero dentro do diretório atual da ROM.
+- Move a ROM antes de salvar as novas mídias.
+- Move capa e fundo já existentes para a pasta media do novo diretório.
+- Mantém o padrão Jogo.png e Jogo-BG.png.
+- Suporta diretório local, MiSTer via SFTP e cartão SD no modo web.
+- Em Simulação, exibe o destino sem mover ou gravar arquivos.
+- Usa Unknown Genre quando não existe gênero utilizável no retorno.
+
+
 ## 6.11.0
 
 - Adiciona seleção de várias plataformas nos modos localhost e web.

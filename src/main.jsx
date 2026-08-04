@@ -192,7 +192,8 @@ function App() {
   const [options, setOptions] = useState({
     force: false,
     background: true,
-    dryRun: false
+    dryRun: false,
+    organizeByGenre: false
   })
 
   const availableLocalSystems = useMemo(
@@ -1253,6 +1254,50 @@ function App() {
               }
 
               if (
+                event.type === 'organized'
+              ) {
+                setScrapeProgress(current => ({
+                  ...current,
+                  romPath:
+                    event.romPath ||
+                    current.romPath,
+                  relativeDirectory:
+                    event.relativeDirectory ||
+                    current.relativeDirectory,
+                  coverAvailable:
+                    Boolean(
+                      event.boxExists
+                    ),
+                  backgroundAvailable:
+                    Boolean(
+                      event.backgroundExists
+                    ),
+                  artworkVersion:
+                    Date.now()
+                }))
+
+                addLog(
+                  `  Organizada em: ${event.genre}`
+                )
+
+                if (event.boxExists) {
+                  addLog(
+                    '  Capa existente preservada na nova pasta media.'
+                  )
+                }
+
+                if (
+                  event.backgroundExists
+                ) {
+                  addLog(
+                    '  Fundo existente preservado na nova pasta media.'
+                  )
+                }
+
+                continue
+              }
+
+              if (
                 event.type === 'artwork'
               ) {
                 setScrapeProgress(current => {
@@ -2139,6 +2184,22 @@ function App() {
                 disabled={running || loadingRoms}
               />
               Simulação
+            </label>
+
+            <label className="organize-genre-option">
+              <input
+                type="checkbox"
+                checked={options.organizeByGenre}
+                onChange={event =>
+                  setOptions({
+                    ...options,
+                    organizeByGenre:
+                      event.target.checked
+                  })
+                }
+                disabled={running || loadingRoms}
+              />
+              Organizar ROMs por gênero
             </label>
 
             <div className="scrape-action-buttons">

@@ -2896,3 +2896,44 @@ main > .card.web-platform-tools {
     flex-direction: column;
   }
 }
+
+
+/* =========================================================
+   ORGANIZAÇÃO AUTOMÁTICA POR GÊNERO
+========================================================= */
+
+.rom-options-panel {
+  grid-template-columns:
+    repeat(4, minmax(155px, 1fr))
+    minmax(190px, 230px);
+}
+
+.organize-genre-option {
+  border-color:
+    rgba(57, 255, 136, 0.3) !important;
+}
+
+.organize-genre-option input[type="checkbox"] {
+  accent-color: var(--green) !important;
+}
+
+@media (max-width: 1320px) {
+  .rom-options-panel {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .rom-options-panel .scrape-action-buttons {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 680px) {
+  .rom-options-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .rom-options-panel .scrape-action-buttons {
+    grid-column: auto;
+  }
+}
